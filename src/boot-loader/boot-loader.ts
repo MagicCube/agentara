@@ -1,4 +1,6 @@
-import { createLogger } from "@/shared";
+import { existsSync, mkdirSync } from "node:fs";
+
+import { config, createLogger } from "@/shared";
 
 const logger = createLogger("boot-loader");
 
@@ -19,6 +21,13 @@ class BootLoader {
     // Checking if the `$AGENTARA_HOME` directory exists
     // - If not, create it, and copy everything from `./user-home` to `$AGENTARA_HOME`
     // - Initialize `config.yaml` with the default values
+    if (!existsSync(config.paths.home)) {
+      // Create the home directory
+    }
+    if (!existsSync(config.paths.data)) {
+      mkdirSync(config.paths.data, { recursive: true });
+    }
+    process.env.DATA_PATH = config.paths.resolveDataFilePath("bunqueue.db");
   }
 
   private async _igniteKernel(): Promise<void> {

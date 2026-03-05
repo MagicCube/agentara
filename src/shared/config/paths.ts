@@ -24,6 +24,9 @@ export const uploads = join(workspace, "uploads");
 export const outputs = join(workspace, "outputs");
 
 export const data = join(home, "data");
+export function resolveDataFilePath(filename: string) {
+  return join(data, filename);
+}
 
 export const claude_home = join(home, ".claude");
 export const skills = join(claude_home, "skills");
