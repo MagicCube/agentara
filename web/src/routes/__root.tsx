@@ -9,6 +9,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 import "@/global.css";
 
@@ -20,7 +21,7 @@ function RootLayout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="h-screen">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -29,10 +30,11 @@ function RootLayout() {
             <ThemeToggle />
           </div>
         </header>
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 min-h-0 flex-col">
           <Outlet />
         </div>
       </SidebarInset>
+      <Toaster position="top-center" />
     </SidebarProvider>
   );
 }

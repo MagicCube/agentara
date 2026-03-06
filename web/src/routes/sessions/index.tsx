@@ -2,8 +2,9 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import type { Session } from "agentara";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { MessageSquare, MoreHorizontal, Search } from "lucide-react";
+import { CopyIcon, MessageSquare, MoreHorizontal, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { useSessions } from "@/api";
 import { Tooltip } from "@/components/tooltip";
@@ -50,12 +51,13 @@ function SessionsPage() {
     return filterSessions(sessions, searchQuery);
   }, [sessions, searchQuery]);
 
-  const handleCopySessionId = (sessionId: string) => {
-    void navigator.clipboard.writeText(sessionId);
+  const handleCopySessionId = async (sessionId: string) => {
+    await navigator.clipboard.writeText(sessionId);
+    toast.info("Session ID copied to clipboard");
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col gap-4 p-6 h-full">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -65,7 +67,7 @@ function SessionsPage() {
           className="pl-9"
         />
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="grid gap-3">
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
@@ -114,9 +116,19 @@ function SessionsPage() {
                 >
                   <div className="flex gap-3">
                     <div className="flex flex-col gap-2">
-                      <span className="truncate text-[10px] text-muted-foreground/40 font-medium">
-                        {session.id}
-                      </span>
+                      <Tooltip content="Click to copy">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleCopySessionId(session.id);
+                          }}
+                          className="truncate text-left text-[10px] text-muted-foreground/40 font-medium hover:text-muted-foreground transition-colors cursor-pointer"
+                        >
+                          {session.id}
+                        </button>
+                      </Tooltip>
                       <span className="truncate text-sm font-medium">
                         {session.first_message || "(No messages yet)"}
                       </span>
@@ -151,6 +163,7 @@ function SessionsPage() {
                     <DropdownMenuItem
                       onSelect={() => handleCopySessionId(session.id)}
                     >
+                      <CopyIcon />
                       Copy session ID
                     </DropdownMenuItem>
                   </DropdownMenuContent>
