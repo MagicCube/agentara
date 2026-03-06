@@ -39,5 +39,11 @@ function TasksPage() {
       </Empty>
     );
   }
-  return <TaskKanban tasks={tasks} onCopyTaskId={handleCopyTaskId} />;
+  return (
+    <TaskKanban
+      className="container mx-auto"
+      tasks={tasks}
+      onCopyTaskId={handleCopyTaskId}
+    />
+  );
 }

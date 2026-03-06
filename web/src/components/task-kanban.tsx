@@ -118,15 +118,17 @@ function TaskKanbanLane({ lane, tasks, onCopyTaskId }: TaskKanbanLaneProps) {
 }
 
 export function TaskKanban({
+  className,
   tasks,
   onCopyTaskId,
 }: {
+  className?: string;
   tasks: Task[];
   onCopyTaskId: (taskId: string) => void;
 }) {
   return (
-    <div className="size-full flex justify-center items-center">
-      <div className="flex w-full max-w-[1024px] h-full gap-4 p-6">
+    <div className={cn("h-full flex justify-center items-center", className)}>
+      <div className="flex w-full h-full gap-4 py-6">
         {lanes.map((lane) => {
           const filteredTasks = tasks.filter((task) => {
             if (lane.key === "done") {

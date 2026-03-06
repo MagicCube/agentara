@@ -59,7 +59,7 @@ function SessionsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 h-full">
-      <div className="relative">
+      <div className="relative container mx-auto">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search your chats..."
@@ -68,7 +68,7 @@ function SessionsPage() {
           className="pl-9"
         />
       </div>
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="container mx-auto flex-1 min-h-0">
         <div className="grid gap-3">
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
