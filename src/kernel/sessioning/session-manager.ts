@@ -7,7 +7,7 @@ import type { Session as SessionEntity } from "@/shared";
 import { sessions } from "./data";
 import { Session } from "./session";
 import {
-  SessionDiaryFileWriter,
+  SessionDailyLogWriter,
   SessionFileWriter,
   SessionLogWriter,
 } from "./writers";
@@ -35,7 +35,7 @@ export interface SessionResolveOptions {
  * database; message content is still appended to `.jsonl` files on disk.
  */
 export class SessionManager {
-  private readonly _diaryWriter = new SessionDiaryFileWriter();
+  private readonly _diaryWriter = new SessionDailyLogWriter();
   private readonly _logger = createLogger("session-manager");
   private readonly _db: DrizzleDB;
 

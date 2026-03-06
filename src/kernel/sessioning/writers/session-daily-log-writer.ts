@@ -1,11 +1,7 @@
 import { config } from "@/shared";
 import type { Message } from "@/shared";
 
-import {
-  appendFile,
-  ensureFile,
-  formatFileLine,
-} from "./session-file-writer-utils";
+import { appendFile, ensureFile, formatFileLine } from "./session-writer-utils";
 
 interface QueuedItem {
   message: Message;
@@ -13,12 +9,12 @@ interface QueuedItem {
 }
 
 /**
- * Appends messages to daily diary file.
+ * Appends messages to daily log file.
  * Cross-session. Uses internal queue for sequential writes.
  */
-export class SessionDiaryFileWriter {
+export class SessionDailyLogWriter {
   write(message: Message): void {
-    const path = config.paths.resolveDiaryFilePath(new Date());
+    const path = config.paths.resolveDailyLogFilePath(new Date());
     this._queue.push({ message, path });
     this._drain();
   }

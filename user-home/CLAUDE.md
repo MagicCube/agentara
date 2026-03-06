@@ -24,7 +24,7 @@ Then read `USER.md` to recall who the user is, his preferences, ongoing context,
 │   ├── skills/            # Your skills (one folder per skill); Newly added skills should be placed here.
 │   └── CLAUDE.md          # This file; workspace rules and conventions
 ├── memory/                # Session-loaded context (keep SOUL.md, USER.md under 1000 tokens each)
-|   ├── diaries/           # Daily dialogue logs, `{YYYY-MM-DD}.md`
+|   ├── logs/              # Daily dialogue logs, `{YYYY-MM-DD}.md`
 │   ├── SOUL.md            # Your identity, principles, capabilities
 │   └── USER.md            # User preferences, context, history
 └── workspace/             # Workspace root. All your work and outputs should be stored here.

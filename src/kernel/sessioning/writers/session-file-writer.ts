@@ -1,8 +1,8 @@
 import type { AssistantMessage, SystemMessage, UserMessage } from "@/shared";
 import { config } from "@/shared";
 
-import { appendFile, ensureFile } from "./session-file-writer-utils";
 import type { SessionWriter } from "./session-writer";
+import { appendFile, ensureFile } from "./session-writer-utils";
 
 /**
  * Appends message as JSON line to session .jsonl file.

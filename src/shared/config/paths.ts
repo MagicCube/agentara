@@ -12,10 +12,10 @@ export function resolveSessionFilePath(session_id: string) {
 }
 
 export const memory = join(home, "memory");
-export const diaries = join(memory, "diaries");
-export function resolveDiaryFilePath(date: Date) {
+export const logs = join(memory, "logs");
+export function resolveDailyLogFilePath(date: Date) {
   const dateString = dayjs(date).format("YYYY-MM-DD");
-  return join(diaries, `${dateString}.md`);
+  return join(logs, `${dateString}.md`);
 }
 
 export const workspace = join(home, "workspace");

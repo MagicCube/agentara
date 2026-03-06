@@ -37,7 +37,7 @@ Responsibilities:
    - If it exists: ensure required subdirectories are present (create any that are missing).
 
 2. **Required directories** (from `config.paths`):
-   - `sessions`, `memory`, `memory/diaries`, `workspace`, `workspace/projects`, `workspace/uploads`, `workspace/outputs`, `data`, `.claude`, `.claude/skills`
+   - `sessions`, `memory`, `memory/logs`, `workspace`, `workspace/projects`, `workspace/uploads`, `workspace/outputs`, `data`, `.claude`, `.claude/skills`
    - Create any that do not exist. Do not overwrite existing files; only ensure directories exist.
 
 3. **config.yaml**
