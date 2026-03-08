@@ -24,9 +24,10 @@ function buildBreadcrumbs(pathname: string): BreadcrumbItemConfig[] {
   const items: BreadcrumbItemConfig[] = [home];
 
   const pathLabels: Record<string, string> = {
-    sessions: "Sessions",
-    tasks: "Tasks",
     memory: "Memory",
+    sessions: "Sessions",
+    skills: "Skills",
+    tasks: "Tasks",
   };
 
   let href = "";
