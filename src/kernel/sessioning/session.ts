@@ -50,11 +50,19 @@ export class Session extends EventEmitter {
   > {
     this.emit("message", userMessage);
     const runner = createAgentRunner(this.agentType);
-    const stream = runner.stream(userMessage, {
+    const rawStream = runner.stream(userMessage, {
       ...this.options,
     });
     this.options.isNewSession = false;
-    return stream;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    async function* wrappedStream() {
+      for await (const message of await rawStream) {
+        self.emit("message", message);
+        yield message;
+      }
+    }
+    return wrappedStream();
   }
 
   /**
@@ -66,7 +74,6 @@ export class Session extends EventEmitter {
     const stream = await this.stream(userMessage);
     let lastMessage: AssistantMessage | undefined;
     for await (const message of stream) {
-      this.emit("message", message);
       if (message.role === "assistant") {
         lastMessage = message;
       }

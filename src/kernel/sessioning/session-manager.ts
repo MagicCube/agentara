@@ -1,8 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import type { DrizzleDB } from "@/data";
-import { config, createLogger, uuid } from "@/shared";
-import type { Session as SessionEntity } from "@/shared";
+import { config, createLogger, extractTextContent, uuid } from "@/shared";
+import type { Session as SessionEntity, UserMessage } from "@/shared";
 
 import { sessions } from "./data";
 import { Session } from "./session";
@@ -28,6 +28,11 @@ export interface SessionResolveOptions {
    * Defaults to `config.paths.home`.
    */
   cwd?: string;
+
+  /**
+   * The first message of the session.
+   */
+  firstMessage?: UserMessage;
 }
 
 /**
@@ -111,12 +116,20 @@ export class SessionManager {
       })
       .run();
 
+    if (options?.firstMessage) {
+      this._updateFirstMessage(
+        sessionId,
+        extractTextContent(options.firstMessage),
+      );
+    }
+
     this._logger.info(`Creating session: ${sessionId}`);
     const session = new Session(sessionId, agentType, {
       isNewSession: true,
       cwd,
     });
     this._attachWriter(session, sessionId);
+
     return session;
   }
 
@@ -129,7 +142,7 @@ export class SessionManager {
    */
   async resumeSession(
     sessionId: string,
-    options?: SessionResolveOptions,
+    options?: Omit<SessionResolveOptions, "firstMessage">,
   ): Promise<Session> {
     const row = this._db
       .select()
@@ -169,28 +182,32 @@ export class SessionManager {
   }
 
   /**
-   * Sets the `first_message` for a session if it is still empty (write-once semantics).
-   * @param sessionId - The session identifier.
-   * @param firstMessage - The text content of the first inbound message.
-   */
-  updateFirstMessage(sessionId: string, firstMessage: string): void {
-    this._db
-      .update(sessions)
-      .set({ first_message: firstMessage, updated_at: Date.now() })
-      .where(and(eq(sessions.id, sessionId), eq(sessions.first_message, "")))
-      .run();
-  }
-
-  /**
    * Updates the `last_message_created_at` and `updated_at` timestamps for a session.
    * @param sessionId - The session identifier.
    */
-  updateLastMessageCreatedAt(sessionId: string): void {
+  private _updateLastMessageCreatedAt(sessionId: string): void {
     const now = Date.now();
     this._db
       .update(sessions)
       .set({ last_message_created_at: now, updated_at: now })
       .where(eq(sessions.id, sessionId))
+      .run();
+  }
+
+  /**
+   * Sets the `first_message` for a session if it is still empty (write-once semantics).
+   * @param sessionId - The session identifier.
+   * @param firstMessage - The text content of the first inbound message.
+   */
+  private _updateFirstMessage(sessionId: string, firstMessage: string): void {
+    this._db
+      .update(sessions)
+      .set({
+        first_message: firstMessage,
+        last_message_created_at: Date.now(),
+        updated_at: Date.now(),
+      })
+      .where(and(eq(sessions.id, sessionId), eq(sessions.first_message, "")))
       .run();
   }
 
@@ -201,7 +218,7 @@ export class SessionManager {
       logWriter.write(message);
       fileWriter.write(message);
       this._diaryWriter.write(message);
-      this.updateLastMessageCreatedAt(sessionId);
+      this._updateLastMessageCreatedAt(sessionId);
     });
   }
 }

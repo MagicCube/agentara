@@ -1,4 +1,5 @@
 import { DataConnection } from "@/data";
+import type { AssistantMessage } from "@/shared";
 import {
   createLogger,
   extractTextContent,
@@ -78,23 +79,33 @@ class Kernel {
   }
 
   private _inboundMessageHandler = async (
+    taskId: string,
     sessionId: string,
     payload: InboundMessageTaskPayload,
   ) => {
-    const session = await this._sessionManager.resolveSession(sessionId);
     const inboundMessage = payload.message;
-    this._sessionManager.updateFirstMessage(
-      sessionId,
-      extractTextContent(inboundMessage),
-    );
+    const session = await this._sessionManager.resolveSession(sessionId, {
+      firstMessage: inboundMessage,
+    });
     this._logger.info(
       {
+        task_id: taskId,
         session_id: sessionId,
         inbound_message: extractTextContent(inboundMessage),
       },
       "inbound_message handler executing",
     );
-    const outboundMessage = await session.run(inboundMessage);
+    const stream = await session.stream(inboundMessage);
+    let lastMessage: AssistantMessage | undefined;
+    for await (const message of stream) {
+      if (message.role === "assistant") {
+        lastMessage = message;
+      }
+    }
+    if (!lastMessage) {
+      throw new Error("No assistant message received from the agent.");
+    }
+    const outboundMessage = lastMessage;
     this._logger.info(
       {
         session_id: sessionId,
