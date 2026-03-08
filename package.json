@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "bunqueue": "^2.6.0",
     "concurrently": "^9.2.1",
     "dayjs": "^1.11.19",
