@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import nodePath from "node:path";
+
 import { Client, EventDispatcher, WSClient } from "@larksuiteoapi/node-sdk";
 import { eq } from "drizzle-orm";
 import EventEmitter from "eventemitter3";
@@ -5,6 +8,7 @@ import EventEmitter from "eventemitter3";
 import type { DrizzleDB } from "@/data";
 import type { Logger, TextMessageContent } from "@/shared";
 import {
+  config,
   createLogger,
   uuid,
   type AssistantMessage,
@@ -25,7 +29,7 @@ export class FeishuMessageChannel
   readonly type = "feishu";
 
   private _inboundClient: WSClient;
-  private _outboundClient: Client;
+  private _client: Client;
   private _db: DrizzleDB;
   private _logger: Logger;
 
@@ -51,7 +55,7 @@ export class FeishuMessageChannel
       appId: this.config.feishuAppId,
       appSecret: this.config.feishuAppSecret,
     });
-    this._outboundClient = new Client({
+    this._client = new Client({
       appId: this.config.feishuAppId,
       appSecret: this.config.feishuAppSecret,
     });
@@ -75,7 +79,7 @@ export class FeishuMessageChannel
     const card = renderMessageCard(message.content, {
       streaming,
     });
-    const { data: replyMessage } = await this._outboundClient.im.message.reply({
+    const { data: replyMessage } = await this._client.im.message.reply({
       path: {
         message_id: messageId,
       },
@@ -114,7 +118,7 @@ export class FeishuMessageChannel
     const card = renderMessageCard(message.content, {
       streaming,
     });
-    await this._outboundClient.im.message.patch({
+    await this._client.im.message.patch({
       path: {
         message_id: message.id,
       },
@@ -138,7 +142,8 @@ export class FeishuMessageChannel
       session_id,
       role: "user",
       content: [
-        this._parseMessageContent(
+        await this._parseMessageContent(
+          messageId,
           receivedMessage.message_type,
           receivedMessage.content,
         ),
@@ -152,12 +157,16 @@ export class FeishuMessageChannel
   /** Persist a thread→session mapping to DB and update the in-memory cache. */
   private _mapThreadToSession(threadId: string, sessionId: string) {
     this._threadIdToSessionId.set(threadId, sessionId);
-    this._db.insert(feishuThreads).values({
-      thread_id: threadId,
-      channel_type: this.type,
-      session_id: sessionId,
-      created_at: Date.now(),
-    }).onConflictDoNothing().run();
+    this._db
+      .insert(feishuThreads)
+      .values({
+        thread_id: threadId,
+        channel_type: this.type,
+        session_id: sessionId,
+        created_at: Date.now(),
+      })
+      .onConflictDoNothing()
+      .run();
   }
 
   /** Resolve a session ID from a thread ID, falling back to DB then generating a new one. */
@@ -179,15 +188,96 @@ export class FeishuMessageChannel
     return uuid();
   }
 
-  private _parseMessageContent(
+  private async _downloadMessageResource(
+    messageId: string,
+    file_key: string,
+    file_name?: string,
+  ): Promise<string> {
+    const { writeFile, headers } = await this._client.im.v1.messageResource.get(
+      {
+        path: {
+          message_id: messageId,
+          file_key,
+        },
+        params: {
+          type: "file",
+        },
+      },
+    );
+    const metadata = JSON.parse(
+      headers.get("inner_file_data_meta") as string,
+    ) as {
+      FileName: string;
+      Mime: string;
+    };
+    const isImage = metadata.Mime.startsWith("image/");
+    let dir = config.paths.uploads;
+    if (isImage) {
+      dir = nodePath.join(dir, "images");
+    }
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    let filename: string;
+    if (file_name) {
+      filename = file_name;
+    } else {
+      filename = metadata.FileName === "image" ? file_key : metadata.FileName;
+      if (metadata.Mime.startsWith("image/")) {
+        filename += "." + metadata.Mime.split("/")[1];
+      } else if (metadata.Mime === "audio/octet-stream") {
+        filename += ".ogg";
+      } else {
+        filename += `.${metadata.Mime.split("/")[1]}`;
+      }
+    }
+    const extname = nodePath.extname(filename);
+    filename = filename.substring(0, filename.length - extname.length);
+    if (fs.existsSync(nodePath.join(dir, filename + extname))) {
+      let i = 1;
+      while (fs.existsSync(nodePath.join(dir, filename + `-${i}` + extname))) {
+        i++;
+      }
+      filename += `-${i}`;
+    }
+    filename += extname;
+    await writeFile(nodePath.join(dir, filename));
+    return nodePath.relative(
+      config.paths.workspace,
+      nodePath.join(dir, filename),
+    );
+  }
+
+  private async _parseMessageContent(
+    messageId: string,
     type: string,
     content: string,
-  ): TextMessageContent {
+  ): Promise<TextMessageContent> {
     const json = JSON.parse(content);
     if (type === "text") {
       return {
         type: "text",
         text: json.text,
+      };
+    } else if (type === "image") {
+      const file_key = json.image_key as string;
+      const path = await this._downloadMessageResource(messageId, file_key);
+      // TODO: use image_url instead of text
+      return {
+        type: "text",
+        text: `A new image message uploaded to \`${path}\``,
+      };
+    } else if (type === "file") {
+      const file_key = json.file_key as string;
+      const file_name = json.file_name as string;
+      const path = await this._downloadMessageResource(
+        messageId,
+        file_key,
+        file_name,
+      );
+      return {
+        type: "text",
+        text: `A new file message uploaded to \`${path}\``,
       };
     } else {
       this._logger.error(`Unsupported message type: ${type}`);
