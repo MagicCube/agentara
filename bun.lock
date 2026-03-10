@@ -18,6 +18,7 @@
         "uuid": "^13.0.0",
       },
       "devDependencies": {
+        "@eslint/js": "^10.0.0",
         "@types/bun": "latest",
         "drizzle-kit": "^0.31.9",
         "drizzle-zod": "^0.8.3",
@@ -108,6 +109,8 @@
     "@eslint/config-helpers": ["@eslint/config-helpers@0.5.2", "https://registry.npmmirror.com/@eslint/config-helpers/-/config-helpers-0.5.2.tgz", { "dependencies": { "@eslint/core": "^1.1.0" } }, "sha512-a5MxrdDXEvqnIq+LisyCX6tQMPF/dSJpCfBgBauY+pNZ28yCtSsTvyTYrMhaI+LK26bVyCJfJkT0u8KIj2i1dQ=="],
 
     "@eslint/core": ["@eslint/core@1.1.0", "https://registry.npmmirror.com/@eslint/core/-/core-1.1.0.tgz", { "dependencies": { "@types/json-schema": "^7.0.15" } }, "sha512-/nr9K9wkr3P1EzFTdFdMoLuo1PmIxjmwvPozwoSodjNBdefGujXQUF93u1DDZpEaTuDvMsIQddsd35BwtrW9Xw=="],
+
+    "@eslint/js": ["@eslint/js@10.0.1", "https://registry.npmmirror.com/@eslint/js/-/js-10.0.1.tgz", { "peerDependencies": { "eslint": "^10.0.0" }, "optionalPeers": ["eslint"] }, "sha512-zeR9k5pd4gxjZ0abRoIaxdc7I3nDktoXZk2qOv9gCNWx3mVwEn32VRhyLaRsDiJjTs0xq/T8mfPtyuXu7GWBcA=="],
 
     "@eslint/object-schema": ["@eslint/object-schema@3.0.2", "https://registry.npmmirror.com/@eslint/object-schema/-/object-schema-3.0.2.tgz", {}, "sha512-HOy56KJt48Bx8KmJ+XGQNSUMT/6dZee/M54XyUyuvTvPXJmsERRvBchsUVx1UMe1WwIH49XLAczNC7V2INsuUw=="],
 
