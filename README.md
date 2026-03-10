@@ -1,5 +1,11 @@
 # 📯 Agentara
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Hono](https://img.shields.io/badge/API-Hono-E36002?logo=hono&logoColor=white)](https://hono.dev)
+[![React](https://img.shields.io/badge/Frontend-React_19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+
 A 24/7 personal assistant powered by Claude Code as a SuperAgent. Multi-channel messaging, task scheduling, session management, and more — all running locally.
 
 You can call me **Tara** for short.
