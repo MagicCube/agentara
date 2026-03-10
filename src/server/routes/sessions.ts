@@ -15,7 +15,7 @@ export const sessionRoutes = new Hono()
   })
   .get("/:id/history", async (c) => {
     const id = c.req.param("id");
-    let messages: Message[] = [];
+    let messages: Message[];
     try {
       const file = Bun.file(config.paths.resolveSessionFilePath(id));
       const jsonl = (await file.text()).trim();
