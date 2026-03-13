@@ -1,6 +1,6 @@
 export { apiFetch } from "./client";
 export {
-  useScheduledTaskRemove,
+  useScheduledTaskDelete,
   useScheduledTasks,
   useScheduledTaskUpdate,
   useSessionDelete,

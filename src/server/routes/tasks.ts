@@ -16,7 +16,7 @@ export const taskRoutes = new Hono()
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
     try {
-      await kernel.taskDispatcher.removeTask(id);
+      await kernel.taskDispatcher.deleteTask(id);
       return c.body(null, 204);
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("Task not found:")) {

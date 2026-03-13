@@ -147,9 +147,9 @@ export function useScheduledTasks() {
 }
 
 /**
- * Removes a scheduled task by scheduler ID.
+ * Deletes a scheduled task by scheduler ID.
  */
-export function useScheduledTaskRemove() {
+export function useScheduledTaskDelete() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (schedulerId: string) =>

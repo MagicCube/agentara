@@ -200,7 +200,7 @@ function RecentsSidebarGroup({
             <AlertDialogTitle>Delete session</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. The session and its history will be
-              permanently removed.
+              permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

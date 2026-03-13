@@ -173,7 +173,9 @@ export class TaskDispatcher {
     };
     const now = Date.now();
 
-    const at = schedule.at ?? (schedule.delay !== undefined ? now + schedule.delay : undefined);
+    const at =
+      schedule.at ??
+      (schedule.delay !== undefined ? now + schedule.delay : undefined);
     if (at !== undefined) {
       if (at <= now) {
         throw new Error(
@@ -301,7 +303,9 @@ export class TaskDispatcher {
       await this._queue.removeJobScheduler(schedulerId);
     }
 
-    const at = schedule.at ?? (schedule.delay !== undefined ? now + schedule.delay : undefined);
+    const at =
+      schedule.at ??
+      (schedule.delay !== undefined ? now + schedule.delay : undefined);
     if (at !== undefined) {
       if (at <= now) {
         throw new Error(
@@ -400,22 +404,18 @@ export class TaskDispatcher {
       .delete(scheduledTasks)
       .where(eq(scheduledTasks.id, schedulerId))
       .run();
-    this._logger.info({ scheduler_id: schedulerId }, "scheduled task removed");
+    this._logger.info({ scheduler_id: schedulerId }, "scheduled task deleted");
   }
 
   /**
-   * Remove a task by ID. For pending jobs, removes from the queue.
+   * Delete a task by ID. For pending jobs, removes from the queue.
    * Always deletes the persisted task row. For one-shot scheduled tasks,
    * also removes the scheduler row.
    * @param taskId - The task (job) ID to remove.
    * @throws Error if no task exists with the given ID.
    */
-  async removeTask(taskId: string): Promise<void> {
-    const row = this._db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.id, taskId))
-      .get();
+  async deleteTask(taskId: string): Promise<void> {
+    const row = this._db.select().from(tasks).where(eq(tasks.id, taskId)).get();
     if (!row) {
       throw new Error(`Task not found: ${taskId}`);
     }
@@ -431,9 +431,9 @@ export class TaskDispatcher {
       .select()
       .from(scheduledTasks)
       .all()
-      .find(
-        (r) => (r.schedule as { _job_id?: string })?._job_id === taskId,
-      ) as ScheduledTaskRow | undefined;
+      .find((r) => (r.schedule as { _job_id?: string })?._job_id === taskId) as
+      | ScheduledTaskRow
+      | undefined;
     if (oneShot) {
       this._db
         .delete(scheduledTasks)
@@ -441,10 +441,10 @@ export class TaskDispatcher {
         .run();
       this._logger.info(
         { scheduler_id: oneShot.id },
-        "one-shot scheduled task removed with task",
+        "one-shot scheduled task deleted with task",
       );
     }
-    this._logger.info({ task_id: taskId }, "task removed");
+    this._logger.info({ task_id: taskId }, "task deleted");
   }
 
   /**

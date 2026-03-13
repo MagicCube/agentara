@@ -39,7 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  useScheduledTaskRemove,
+  useScheduledTaskDelete,
   useScheduledTasks,
   type ScheduledTask,
 } from "@/lib/api";
@@ -80,17 +80,17 @@ function formatSchedule(schedule: ScheduledTask["schedule"]): string {
 
 function CronjobsPage() {
   const { data: tasks, isLoading } = useScheduledTasks();
-  const removeMutation = useScheduledTaskRemove();
-  const [toRemove, setToRemove] = useState<ScheduledTask | null>(null);
+  const deleteMutation = useScheduledTaskDelete();
+  const [toDelete, setToDelete] = useState<ScheduledTask | null>(null);
 
-  const handleRemove = async () => {
-    if (!toRemove) return;
+  const handleDelete = async () => {
+    if (!toDelete) return;
     try {
-      await removeMutation.mutateAsync(toRemove.id);
-      toast.success("Scheduled task removed");
-      setToRemove(null);
+      await deleteMutation.mutateAsync(toDelete.id);
+      toast.success("Scheduled task deleted");
+      setToDelete(null);
     } catch {
-      toast.error("Failed to remove scheduled task");
+      toast.error("Failed to delete scheduled task");
     }
   };
 
@@ -193,10 +193,10 @@ function CronjobsPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         variant="destructive"
-                        onSelect={() => setToRemove(task)}
+                        onSelect={() => setToDelete(task)}
                       >
                         <Trash2 />
-                        Remove
+                        Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -207,15 +207,15 @@ function CronjobsPage() {
         </Table>
 
         <AlertDialog
-          open={!!toRemove}
-          onOpenChange={(open) => !open && setToRemove(null)}
+          open={!!toDelete}
+          onOpenChange={(open) => !open && setToDelete(null)}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Remove scheduled task?</AlertDialogTitle>
+              <AlertDialogTitle>Delete scheduled task?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove the scheduled task &quot;
-                {toRemove?.instruction}
+                This will permanently delete the scheduled task &quot;
+                {toDelete?.instruction}
                 &quot;. It cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -225,11 +225,11 @@ function CronjobsPage() {
                 variant="destructive"
                 onClick={(e) => {
                   e.preventDefault();
-                  void handleRemove();
+                  void handleDelete();
                 }}
-                disabled={removeMutation.isPending}
+                disabled={deleteMutation.isPending}
               >
-                {removeMutation.isPending ? "Removing…" : "Remove"}
+                {deleteMutation.isPending ? "Deleting…" : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
