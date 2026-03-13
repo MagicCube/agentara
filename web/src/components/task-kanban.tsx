@@ -73,9 +73,12 @@ function TaskCard({ task, lane, onCopyTaskId }: TaskCardProps) {
             task.payload.message.content
               .map((content) => content.type === "text" && content.text)
               .join(" ")}
+          {task.payload.type === "scheduled_task" && task.payload.instruction}
         </CardTitle>
         <CardDescription className="text-xs">
-          Last updated {dayjs(task.updated_at).fromNow()}
+          {task.payload.type === "inbound_message" && "Inbound message"}
+          {task.payload.type === "scheduled_task" && "Scheduled task"}, last
+          updated {dayjs(task.updated_at).fromNow()}
         </CardDescription>
       </CardHeader>
     </Card>
@@ -88,11 +91,7 @@ interface TaskKanbanLaneProps {
   onCopyTaskId: (taskId: string) => void;
 }
 
-function TaskKanbanLaneSkeleton({
-  cardCount,
-}: {
-  cardCount: number;
-}) {
+function TaskKanbanLaneSkeleton({ cardCount }: { cardCount: number }) {
   return (
     <Card className="flex-1 py-4 bg-sidebar rounded-lg gap-0 pb-0">
       <CardHeader className="px-4">
@@ -105,10 +104,7 @@ function TaskKanbanLaneSkeleton({
       <CardContent className="flex-1 min-h-0 px-0">
         <div className="flex flex-col gap-2 pb-4 px-3">
           {Array.from({ length: cardCount }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-lg border bg-sidebar-accent/30 p-4"
-            >
+            <div key={i} className="rounded-lg border bg-sidebar-accent/30 p-4">
               <Skeleton className="h-3 w-14" />
               <Skeleton className="mt-2 h-4 w-full" />
               <Skeleton className="mt-2 h-3 w-24" />
@@ -165,12 +161,7 @@ export function TaskKanban({
 }) {
   if (isLoading) {
     return (
-      <div
-        className={cn(
-          "h-full flex justify-center items-center",
-          className,
-        )}
-      >
+      <div className={cn("h-full flex justify-center items-center", className)}>
         <div className="flex w-full h-full gap-4 py-6">
           {lanes.map((_, i) => (
             <TaskKanbanLaneSkeleton
