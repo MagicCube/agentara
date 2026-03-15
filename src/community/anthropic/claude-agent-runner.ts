@@ -1,4 +1,5 @@
 import {
+  config,
   extractTextContent,
   type MessageContent,
   type ToolMessage,
@@ -28,7 +29,7 @@ export class ClaudeAgentRunner implements AgentRunner {
     const args = [
       "claude",
       ...(!isNew ? ["--resume", sessionId] : ["--session-id", sessionId]),
-      ...["--model", "claude-sonnet-4-6"],
+      ...["--model", config.agents.default.model],
       ...["--output-format", "stream-json"],
       "--print",
       "--verbose",

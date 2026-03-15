@@ -70,6 +70,7 @@ class BootLoader {
 agents:
   default:
     type: claude
+    model: claude-sonnet-4-6
 
 tasking:
   max_retries: 1
