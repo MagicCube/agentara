@@ -1,0 +1,4 @@
+interface:
+  display_name: "AMap API Script Skill"
+  short_description: "Use Bun scripts to query AMap Web Service APIs"
+  default_prompt: "Use the AMap script skill to execute the right command, return raw AMap JSON, and enforce non-zero exit codes on failures."

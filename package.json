@@ -34,7 +34,7 @@
     "typescript": "^5"
   },
   "lint-staged": {
-    "*.ts": "eslint --max-warnings=0"
+    "*.ts": "eslint --max-warnings=0 --no-warn-ignored"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",

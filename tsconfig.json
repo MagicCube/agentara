@@ -32,5 +32,5 @@
       "agentara/boot-loader": ["./src/boot-loader/index.ts"]
     }
   },
-  "exclude": ["web"]
+  "exclude": ["web", "user-home"]
 }
