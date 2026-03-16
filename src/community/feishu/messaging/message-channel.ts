@@ -80,8 +80,9 @@ export class FeishuMessageChannel
     message: Omit<AssistantMessage, "id">,
     { streaming = true }: { streaming?: boolean } = {},
   ): Promise<AssistantMessage> {
-    const card = renderMessageCard(message.content, {
+    const card = await renderMessageCard(message.content, {
       streaming,
+      uploadImage: this.uploadImage.bind(this),
     });
     const { data: replyMessage } = await this._client.im.message.reply({
       path: {
@@ -109,8 +110,9 @@ export class FeishuMessageChannel
   async postMessage(
     message: Omit<AssistantMessage, "id">,
   ): Promise<AssistantMessage> {
-    const card = renderMessageCard(message.content, {
+    const card = await renderMessageCard(message.content, {
       streaming: false,
+      uploadImage: this.uploadImage.bind(this),
     });
     const { data } = await this._client.im.message.create({
       params: {
@@ -162,8 +164,9 @@ export class FeishuMessageChannel
     message: AssistantMessage,
     { streaming = true }: { streaming?: boolean } = {},
   ): Promise<void> {
-    const card = renderMessageCard(message.content, {
+    const card = await renderMessageCard(message.content, {
       streaming,
+      uploadImage: this.uploadImage.bind(this),
     });
     await this._client.im.message.patch({
       path: {
@@ -173,6 +176,95 @@ export class FeishuMessageChannel
         content: JSON.stringify(card),
       },
     });
+  }
+
+  /**
+   * Uploads an image to Feishu. Returns the key of the uploaded image.
+   * @param path - The path to the image to upload.
+   * @returns The key of the uploaded image.
+   */
+  async uploadImage(path: string): Promise<string> {
+    const absPath = nodePath.join(config.paths.home, path);
+    const file = fs.readFileSync(absPath);
+    this._logger.info(`Uploading image ${absPath}`);
+    const res = await this._client.im.v1.image.create({
+      data: {
+        image_type: "message",
+        image: file,
+      },
+    });
+    this._logger.info(
+      `Uploaded image ${absPath} -> ${res?.image_key || "failed"}`,
+    );
+    if (res?.image_key) {
+      return res.image_key;
+    } else {
+      throw new Error("Failed to upload image");
+    }
+  }
+
+  /**
+   * Downloads an image or a file from a message.
+   * @param messageId - The ID of the message to download the resource from.
+   * @param file_key - The key of the file to download.
+   * @param file_name - The name of the file to download. If not provided, the file name will be inferred from the file key.
+   * @returns The path to the downloaded file.
+   */
+  async downloadMessageResource(
+    messageId: string,
+    file_key: string,
+    file_name?: string,
+  ): Promise<string> {
+    const { writeFile, headers } = await this._client.im.v1.messageResource.get(
+      {
+        path: {
+          message_id: messageId,
+          file_key,
+        },
+        params: {
+          type: "file",
+        },
+      },
+    );
+    const metadata = JSON.parse(
+      headers.get("inner_file_data_meta") as string,
+    ) as {
+      FileName: string;
+      Mime: string;
+    };
+    const isImage = metadata.Mime.startsWith("image/");
+    let dir = config.paths.uploads;
+    if (isImage) {
+      dir = nodePath.join(dir, "images");
+    }
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    let filename: string;
+    if (file_name) {
+      filename = file_name;
+    } else {
+      filename = metadata.FileName === "image" ? file_key : metadata.FileName;
+      if (metadata.Mime.startsWith("image/")) {
+        filename += "." + metadata.Mime.split("/")[1];
+      } else if (metadata.Mime === "audio/octet-stream") {
+        filename += ".ogg";
+      } else {
+        filename += `.${metadata.Mime.split("/")[1]}`;
+      }
+    }
+    const extname = nodePath.extname(filename);
+    filename = filename.substring(0, filename.length - extname.length);
+    if (fs.existsSync(nodePath.join(dir, filename + extname))) {
+      let i = 1;
+      while (fs.existsSync(nodePath.join(dir, filename + `-${i}` + extname))) {
+        i++;
+      }
+      filename += `-${i}`;
+    }
+    filename += extname;
+    await writeFile(nodePath.join(dir, filename));
+    return nodePath.relative(config.paths.home, nodePath.join(dir, filename));
   }
 
   private _handleMessageReceive = async ({
@@ -230,63 +322,6 @@ export class FeishuMessageChannel
     return uuid();
   }
 
-  private async _downloadMessageResource(
-    messageId: string,
-    file_key: string,
-    file_name?: string,
-  ): Promise<string> {
-    const { writeFile, headers } = await this._client.im.v1.messageResource.get(
-      {
-        path: {
-          message_id: messageId,
-          file_key,
-        },
-        params: {
-          type: "file",
-        },
-      },
-    );
-    const metadata = JSON.parse(
-      headers.get("inner_file_data_meta") as string,
-    ) as {
-      FileName: string;
-      Mime: string;
-    };
-    const isImage = metadata.Mime.startsWith("image/");
-    let dir = config.paths.uploads;
-    if (isImage) {
-      dir = nodePath.join(dir, "images");
-    }
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    let filename: string;
-    if (file_name) {
-      filename = file_name;
-    } else {
-      filename = metadata.FileName === "image" ? file_key : metadata.FileName;
-      if (metadata.Mime.startsWith("image/")) {
-        filename += "." + metadata.Mime.split("/")[1];
-      } else if (metadata.Mime === "audio/octet-stream") {
-        filename += ".ogg";
-      } else {
-        filename += `.${metadata.Mime.split("/")[1]}`;
-      }
-    }
-    const extname = nodePath.extname(filename);
-    filename = filename.substring(0, filename.length - extname.length);
-    if (fs.existsSync(nodePath.join(dir, filename + extname))) {
-      let i = 1;
-      while (fs.existsSync(nodePath.join(dir, filename + `-${i}` + extname))) {
-        i++;
-      }
-      filename += `-${i}`;
-    }
-    filename += extname;
-    await writeFile(nodePath.join(dir, filename));
-    return nodePath.relative(config.paths.home, nodePath.join(dir, filename));
-  }
-
   private async _parseMessageContent(
     messageId: string,
     type: string,
@@ -301,7 +336,7 @@ export class FeishuMessageChannel
     } else if (type === "post") {
       const markdown = await convertPostToMarkdown(
         json,
-        this._downloadMessageResource.bind(this, messageId),
+        this.downloadMessageResource.bind(this, messageId),
       );
       return {
         type: "text",
@@ -309,16 +344,15 @@ export class FeishuMessageChannel
       };
     } else if (type === "image") {
       const file_key = json.image_key as string;
-      const path = await this._downloadMessageResource(messageId, file_key);
-      // TODO: use image_url instead of text
+      const path = await this.downloadMessageResource(messageId, file_key);
       return {
         type: "text",
-        text: `A new image has been uploaded to \`${path}\`. Load this image to your context to continue the conversation.`,
+        text: `![user_uploaded_image](${path})`,
       };
     } else if (type === "file") {
       const file_key = json.file_key as string;
       const file_name = json.file_name as string;
-      const path = await this._downloadMessageResource(
+      const path = await this.downloadMessageResource(
         messageId,
         file_key,
         file_name,

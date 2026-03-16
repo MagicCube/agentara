@@ -1,15 +1,19 @@
-import type {
-  AssistantMessage,
-  BashToolUseMessageContent,
-  EditToolUseMessageContent,
-  GlobToolUseMessageContent,
-  GrepToolUseMessageContent,
-  ReadToolUseMessageContent,
-  SkillToolUseMessageContent,
-  ToolUseMessageContent,
-  WebFetchToolUseMessageContent,
-  WebSearchToolUseMessageContent,
-  WriteToolUseMessageContent,
+import fs from "node:fs";
+import nodePath from "node:path";
+
+import {
+  config,
+  type AssistantMessage,
+  type BashToolUseMessageContent,
+  type EditToolUseMessageContent,
+  type GlobToolUseMessageContent,
+  type GrepToolUseMessageContent,
+  type ReadToolUseMessageContent,
+  type SkillToolUseMessageContent,
+  type ToolUseMessageContent,
+  type WebFetchToolUseMessageContent,
+  type WebSearchToolUseMessageContent,
+  type WriteToolUseMessageContent,
 } from "@/shared";
 
 import type {
@@ -25,10 +29,17 @@ import type {
  * @param options - Rendering options (streaming mode).
  * @returns Feishu Card object for API payload.
  */
-export function renderMessageCard(
+export async function renderMessageCard(
   messageContent: AssistantMessage["content"],
-  { streaming }: { streaming: boolean },
-): Card {
+  {
+    streaming,
+    uploadImage,
+  }: {
+    streaming: boolean;
+    // eslint-disable-next-line no-unused-vars
+    uploadImage: (path: string) => Promise<string>;
+  },
+): Promise<Card> {
   const stepPanel: CollapsiblePanel = {
     tag: "collapsible_panel",
     expanded: streaming,
@@ -71,19 +82,22 @@ export function renderMessageCard(
   };
   for (const content of messageContent) {
     if (content.type === "thinking") {
-      stepPanel.elements.push(renderStep(content.thinking, "robot_outlined"));
+      stepPanel.elements.push(_renderStep(content.thinking, "robot_outlined"));
     } else if (content.type === "tool_use") {
-      renderTool(content, stepPanel);
+      _renderTool(content, stepPanel);
     }
   }
   if (!streaming) {
     const lastContent = messageContent[messageContent.length - 1];
     if (lastContent?.type === "text") {
+      const markdownContent = await _uploadMessageResource(lastContent.text, {
+        uploadImage,
+      });
       const resultElement: MarkdownElement = {
         tag: "markdown",
-        content: lastContent.text,
+        content: markdownContent,
       };
-      card.config!.summary.content = lastContent.text;
+      card.config!.summary.content = markdownContent;
       card.body.elements.push(resultElement);
     }
   }
@@ -126,20 +140,74 @@ export function renderMessageCard(
   return card;
 }
 
+async function _uploadMessageResource(
+  text: string,
+  {
+    uploadImage,
+  }: {
+    // eslint-disable-next-line no-unused-vars
+    uploadImage: (path: string) => Promise<string>;
+  },
+): Promise<string> {
+  const images = text.match(/!\[.*?\]\((.*?)\)/g);
+  if (images) {
+    for (const image of images) {
+      console.info("image", image);
+      let imagePath = image.match(/!\[.*?\]\((.*?)\)/)?.[1];
+      if (imagePath) {
+        console.info("imagePath", imagePath);
+        if (imagePath.startsWith("http:") || imagePath.startsWith("https:")) {
+          try {
+            const response = await fetch(imagePath);
+            const imageBuffer = await response.arrayBuffer();
+            const imageName = imagePath.split("/").pop();
+            const downloadPath = nodePath.join(
+              config.paths.workspace,
+              "downloads",
+            );
+            if (!fs.existsSync(downloadPath)) {
+              fs.mkdirSync(downloadPath, { recursive: true });
+            }
+            if (imageName) {
+              fs.writeFileSync(
+                nodePath.join(downloadPath, imageName),
+                Buffer.from(imageBuffer),
+              );
+              imagePath = nodePath.join("workspace", "downloads", imageName);
+            }
+          } catch {
+            text = text.replaceAll(image, `[${imagePath}](${imagePath})`);
+          }
+        }
+        if (fs.existsSync(nodePath.join(config.paths.home, imagePath))) {
+          const imageKey = await uploadImage(imagePath);
+          console.info("imageKey", imageKey);
+          text = text.replaceAll(image, `![image](${imageKey})`);
+          console.info("Replace", image, `![image](${imageKey})`);
+        } else {
+          text = text.replaceAll(image, "");
+        }
+      }
+    }
+  }
+  console.info("text", text);
+  return text;
+}
+
 /** Render a single tool use step into the collapsible panel. */
-function renderTool(
+function _renderTool(
   content: ToolUseMessageContent,
   stepPanel: CollapsiblePanel,
 ) {
   switch (content.name) {
     case "Agent":
     case "Task":
-      stepPanel.elements.push(renderStep("Run sub-agent", "robot_outlined"));
+      stepPanel.elements.push(_renderStep("Run sub-agent", "robot_outlined"));
       break;
     case "Bash":
       const bashContent = content as BashToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           bashContent.input.description ?? bashContent.input.command,
           "computer_outlined",
         ),
@@ -148,13 +216,13 @@ function renderTool(
     case "Edit":
       const editContent = content as EditToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(`Edit "${editContent.input.file_path}"`, "edit_outlined"),
+        _renderStep(`Edit "${editContent.input.file_path}"`, "edit_outlined"),
       );
       break;
     case "Glob":
       const globContent = content as GlobToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Search files by pattern "${globContent.input.pattern}"`,
           "card-search_outlined",
         ),
@@ -163,7 +231,7 @@ function renderTool(
     case "Grep":
       const grepContent = content as GrepToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Search text by pattern "${grepContent.input.pattern}" in "${grepContent.input.glob}"`,
           "doc-search_outlined",
         ),
@@ -172,7 +240,7 @@ function renderTool(
     case "WebFetch":
       const webFetchContent = content as WebFetchToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Fetch web page from "${webFetchContent.input.url}"`,
           "language_outlined",
         ),
@@ -181,7 +249,7 @@ function renderTool(
     case "WebSearch":
       const webSearchContent = content as WebSearchToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Search web for "${webSearchContent.input.query}"`,
           "search_outlined",
         ),
@@ -190,7 +258,7 @@ function renderTool(
     case "Read":
       const readContent = content as ReadToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Read file "${readContent.input.file_path}"`,
           "file-link-bitable_outlined",
         ),
@@ -199,7 +267,7 @@ function renderTool(
     case "Write":
       const writeContent = content as WriteToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Write file "${writeContent.input.file_path}"`,
           "edit_outlined",
         ),
@@ -208,7 +276,7 @@ function renderTool(
     case "Skill":
       const skillContent = content as SkillToolUseMessageContent;
       stepPanel.elements.push(
-        renderStep(
+        _renderStep(
           `Load skill "${skillContent.input.skill}"`,
           "file-link-mindnote_outlined",
         ),
@@ -227,13 +295,13 @@ function renderTool(
       break;
     default:
       stepPanel.elements.push(
-        renderStep(content.name, "setting-inter_outlined"),
+        _renderStep(content.name, "setting-inter_outlined"),
       );
   }
 }
 
 /** Create a step element (icon + text) for the collapsible panel. */
-function renderStep(text: string, iconToken: string): DivElement {
+function _renderStep(text: string, iconToken: string): DivElement {
   return {
     tag: "div",
     icon: {
