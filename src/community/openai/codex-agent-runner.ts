@@ -1,6 +1,11 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   config,
+  createLogger,
   extractTextContent,
+  resolveInstructionFile,
   uuid,
   type ToolMessage,
   type AgentRunner,
@@ -9,6 +14,8 @@ import {
   type SystemMessage,
   type UserMessage,
 } from "@/shared";
+
+const logger = createLogger("codex-agent-runner");
 
 /**
  * The agent runner for OpenAI Codex CLI.
@@ -28,6 +35,10 @@ export class CodexAgentRunner implements AgentRunner {
     const textContentOfUserMessage = JSON.stringify(
       extractTextContent(message),
     );
+
+    // Sync CLAUDE.md → AGENTS.md on every invocation so Codex CLI always
+    // picks up the latest content (e.g. updated @memory/USER.md).
+    this._syncAgentsMd(options.cwd);
 
     const args = isNew
       ? [
@@ -389,6 +400,41 @@ export class CodexAgentRunner implements AgentRunner {
 
       default:
         return [];
+    }
+  }
+
+  /**
+   * Reads `CLAUDE.md` from `cwd`, resolves any `@path/file` imports, and
+   * writes the result as `AGENTS.md` so the Codex CLI can pick it up as its
+   * native instruction file.  Skips the write when the content is unchanged
+   * to avoid unnecessary filesystem churn.
+   */
+  private _syncAgentsMd(cwd: string): void {
+    try {
+      const claudeMdPath = join(cwd, "CLAUDE.md");
+      if (!existsSync(claudeMdPath)) {
+        return;
+      }
+
+      const resolved = resolveInstructionFile(claudeMdPath, cwd);
+      if (!resolved) {
+        return;
+      }
+
+      const agentsMdPath = join(cwd, "AGENTS.md");
+
+      // Skip write when contents are identical to avoid file-watcher churn.
+      if (existsSync(agentsMdPath)) {
+        const existing = readFileSync(agentsMdPath, "utf-8");
+        if (existing === resolved) {
+          return;
+        }
+      }
+
+      writeFileSync(agentsMdPath, resolved, "utf-8");
+      logger.info("Synced CLAUDE.md → AGENTS.md (with resolved imports)");
+    } catch (err) {
+      logger.warn({ err }, "Failed to sync CLAUDE.md → AGENTS.md");
     }
   }
 }
