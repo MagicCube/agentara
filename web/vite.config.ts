@@ -28,4 +28,7 @@ export default defineConfig({
       agentara: path.resolve(__dirname, "../src/index.ts"),
     },
   },
+  optimizeDeps: {
+    exclude: ["js-big-decimal"],
+  },
 });
