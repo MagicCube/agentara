@@ -87,18 +87,18 @@ If US stock `pct` is always near 0 except the last row, it's because the diff is
 
 Keep it brief and mobile-friendly. Use list format, no tables.
 
-**Change emoji rules:**
-- `pct > 0` → 📈
-- `pct < 0` → 📉
-- `pct == 0` → ➡️
+**Color + emoji rules (Chinese convention: 红涨绿跌):**
+- `pct > 0` → emoji 📈, wrap numbers in `<font color='red'>...</font>`
+- `pct < 0` → emoji 📉, wrap numbers in `<font color='green'>...</font>`
+- `pct == 0` → emoji ➡️, no color wrapper
 
 **Template (adapt to context):**
 
 ```
 **{公司名} · {市场} {代码}**
 
-- 最新价：{price} {货币}
-- 涨跌：{emoji} {chg:+.2f} / {pct:+.2f}%
+- 最新价：<font color='red/green'>**{price} {货币}**</font>
+- 涨跌：{emoji} <font color='red/green'>**{chg:+.2f} / {pct:+.2f}%**</font>
 - 最新交易日：{date}
 
 {anomaly_section_if_any}
@@ -109,7 +109,7 @@ Keep it brief and mobile-friendly. Use list format, no tables.
 ⚠️ 异常提示
 - [flag 1]
 - [flag 2]
-近5日均幅 {avg_vol:.2f}%，今日 {pct:.2f}%
+近5日均幅 **{avg_vol:.2f}%**，今日 <font color='red/green'>**{pct:.2f}%**</font>
 ```
 
 **If no anomaly:** omit the anomaly section entirely. Keep the whole response under 10 lines.

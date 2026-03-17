@@ -16,7 +16,7 @@ The final output should be in the user's preferred language which is `zh-CN` sim
 
 ## Workflow Overview
 
-Execute the following steps in order. Use parallel `web_search` / `web_fetch` calls wherever possible to minimize latency.
+Execute the following steps in order. Step 1.5 runs a Python prefetch script that fetches most data sources in parallel (~1-3s). Steps 2-6 read from this prefetch data — **do NOT call `web_fetch`/`web_search` for sources already covered by prefetch** unless the prefetch errored. Only Steps 4b, 4c, and 7 still need `web_search`.
 
 ---
 
@@ -31,34 +31,39 @@ Execute the following steps in order. Use parallel `web_search` / `web_fetch` ca
 
 ---
 
-### Step 2: Fetch Product Hunt Data (AI-focused, Top 3–5)
+### Step 1.5: Run Prefetch Script
 
-Goal: Get the **top 3–5 AI-related products** from today's Product Hunt leaderboard.
+```bash
+cd /Users/henry/.agentara/.claude/skills/pulse && uv run scripts/prefetch.py 2>/dev/null
+```
 
-1. `web_fetch` on the `https://www.producthunt.com/feed` (M and D are without leading zeros) URL.
-2. From the leaderboard, pick the **top 3–5 products that are AI-related** (AI tools, LLM wrappers, ML infra, AI agents, AIGC, etc.). If fewer than 3 AI products exist on the leaderboard, include the top overall products to fill the gap, noting they are non-AI.
-3. For each product, collect:
-   - Product name
-   - One-line tagline
-   - Upvote count (if available)
-   - Direct link to the product page: `https://www.producthunt.com/posts/{slug}`
-4. Write a brief personal note (1 sentence) on why it matters or what's interesting.
+Returns a JSON blob with `producthunt`, `github_trending`, `google_news`, `podcasts`, `weather`, `stock` data — all fetched in parallel (~1-3s).
+- **Directly use prefetch data** for Steps 2, 3, 4a, 4e, 5, 6 below — do NOT call `web_fetch` for these sources.
+- If a source's `errors` entry is not null, fall back to the original `web_fetch`/`web_search` approach for that source only.
+- Steps 4b (Alibaba/ByteDance news), 4c (AI health news), and 7 (dedup) still use `web_search` as before.
 
 ---
 
-### Step 3: Fetch GitHub Trending Data (Top 5)
+### Step 2: Product Hunt (AI-focused, Top 3–5)
 
-Goal: Get the **top 5 repositories** from GitHub Trending (daily, default language filter).
+Goal: Get the **top 3–5 AI-related products** from today's Product Hunt leaderboard.
 
-1. `web_fetch` on `https://github.com/trending?since=daily`.
-2. Extract the **top 5** repos with:
-   - Full name (`owner/repo`)
-   - Description
-   - Primary language
-   - Total stars
-   - Stars gained today
-3. Links: `https://github.com/{owner}/{repo}`
-4. Add a brief note on relevance to the user's interests (AI agents, TypeScript, Python, LangChain, medical tech, etc.) if applicable.
+**Data source**: Use `prefetch.producthunt.markdown` directly. Fallback: `web_fetch` on `https://www.producthunt.com/feed` only if prefetch errored.
+
+1. From the markdown, pick the **top 3–5 products that are AI-related** (AI tools, LLM wrappers, ML infra, AI agents, AIGC, etc.). If fewer than 3 AI products exist, include top overall products to fill the gap.
+2. For each product, collect: product name, one-line tagline, upvote count (if available), direct link `https://www.producthunt.com/posts/{slug}`.
+3. Write a brief personal note (1 sentence) on why it matters.
+
+---
+
+### Step 3: GitHub Trending (Top 5)
+
+Goal: Get the **top 5 repositories** from GitHub Trending (daily).
+
+**Data source**: Use `prefetch.github_trending` array directly. Each item has `name`, `description`, `language`, `stars_today`, `total_stars`, `url`. Fallback: `web_fetch` on `https://github.com/trending?since=daily` only if prefetch errored.
+
+1. Use the top 5 repos from prefetch data.
+2. Add a brief note on relevance to the user's interests (AI agents, TypeScript, Python, LangChain, medical tech, etc.) if applicable.
 
 ---
 
@@ -68,9 +73,10 @@ This is the most editorial step. Gather news from multiple sources, then apply s
 
 #### 4a: Google News — Breaking / Must-Know Stories
 
-1. `web_fetch` on `https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans`
-2. Scan for **major domestic and international events** that a tech professional in China should know about. Think: geopolitical shifts, major policy changes, natural disasters, significant economic events, landmark tech regulations.
-3. Only include stories that are genuinely significant — skip routine political coverage and soft news.
+**Data source**: Use `prefetch.google_news` array directly (each item has `title`, `link`, `published`). Fallback: `web_fetch` on `https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans` only if prefetch errored.
+
+1. Scan the titles for **major domestic and international events** that a tech professional in China should know about. Think: geopolitical shifts, major policy changes, natural disasters, significant economic events, landmark tech regulations.
+2. Only include stories that are genuinely significant — skip routine political coverage and soft news.
 
 #### 4b: Alibaba & ByteDance Corporate News
 
@@ -93,51 +99,30 @@ Before finalizing the news list, apply these filters strictly:
 - **Deduplication**: Check against the user's recent Pulse outputs (use `conversation_search` with keyword "Pulse" to find recent briefings). Do NOT include a story that appeared in a recent Pulse. If unsure, include it but note it as a developing story.
 - **Result**: Aim for **3–8 news items total** across all sub-categories. Fewer is better than padding.
 
-#### 4e: Fetch Podcasts
+#### 4e: Podcasts
 
-1. `web_fetch` the following podcasts to see if there are any updates:
-   - [硅谷101](https://www.xiaoyuzhoufm.com/podcast/5e5c52c9418a84a04625e6cc)
-   - [罗永浩的十字路口](https://www.xiaoyuzhoufm.com/podcast/68981df29e7bcd326eb91d88)
-   - [十字路口 Crossing](https://www.xiaoyuzhoufm.com/podcast/60502e253c92d4f62c2a9577)
-   - [晚点聊](https://www.xiaoyuzhoufm.com/podcast/61933ace1b4320461e91fd55)
-   - [锦供参考](https://www.xiaoyuzhoufm.com/podcast/69a6aba3de6dd3793a39e06b)
-   - [elsewhere别处发生](https://www.xiaoyuzhoufm.com/podcast/68ff657d9c745a6e69da8fcf)
-   - [张小珺Jùn｜商业访谈录](https://www.xiaoyuzhoufm.com/podcast/626b46ea9cbbf0451cf5a962)
+**Data source**: Use `prefetch.podcasts` array directly (already filtered to 48h updates, each item has `name`, `url`, `episode_title`, `episode_url`, `episode_date`, `shownotes`). Prefetch now contains full episode details — no need to `web_fetch` individual episodes. Fallback: `web_fetch` each podcast URL only if prefetch errored.
 
-> If the user asks for add a new podcast, `web_search` "{podcast name} site:xiaoyuzhoufm.com" and filter the results by "www.xiaoyuzhoufm.com/podcast/{id}" to find the right podcast URL, then add it to the list.
+Podcast list (maintained in `prefetch.py`):
+硅谷101, 罗永浩的十字路口, 十字路口 Crossing, 晚点聊, 锦供参考, elsewhere别处发生, 张小珺Jùn｜商业访谈录
 
-2. Only select the podcasts which updated in the last 48 hours.
+> To add a new podcast: `web_search` "{podcast name} site:xiaoyuzhoufm.com", find the URL, then add it to both `prefetch.py` PODCAST_URLS and this list.
 
 ---
 
-### Step 5: Fetch Stock Data
+### Step 5: Stock Data
 
-Fetch real-time stock prices for BABA on both exchanges.
+**Data source**: Use `prefetch.stock.BABA` directly (`latest.price`, `latest.change`, `latest.change_pct`, `latest.date`, `chart`). The `chart` field contains the absolute path to a 90-day line chart PNG saved at `workspace/outputs/stock-{code}/{YYYY-MM-DD}.png`. Fallback: `python3 scripts/stock.py` only if prefetch errored.
 
-1. `web_search` for `BABA stock price today` to get the latest US-listed price (NYSE: BABA).
-2. `web_search` for `9988.HK stock price today` to get the latest HK-listed price (HKEX: 9988).
-3. For each, collect:
-   - Current price
-   - Change amount and percentage (+ or -)
-4. Write a one-line 股评 (market comment) based on the day's movement, recent context (earnings dates, macro events), and user's known position.
+If change_pct > 2% or < -2%, `web_search` for related news and report to the user.
 
 ---
 
-### Step 6: Fetch Weather Data
+### Step 6: Weather Data
 
-Fetch the following 3 cities' weather.
+**Data source**: Use `prefetch.weather` directly. Each city (Beijing/Shanghai/Nanjing) has `today` and `tomorrow` with `high`, `low`, `desc`, `emoji`. Fallback: `web_fetch` wttr.in only if prefetch errored.
 
-For `CITY_ID`:
-- 北京: https://wttr.in/Beijing?format=j1
-- 上海: https://wttr.in/Shanghai?format=j1
-- 南京: https://wttr.in/Nanjing?format=j1
-
-#### What to report per day:
-- Weather type with emoji (☀️ 晴, ⛅ 多云, 🌧️ 小雨, 🌧️🌧️ 大雨, ❄️ 小雪, 🌨️ 暴雪, 🌫️ 雾, ⛈️ 雷阵雨, etc.)
-- High / Low temperature in °C
-
-### Format
-- Use list but not table.
+Format: list (not table), per city show today + tomorrow with emoji, desc, low°C ~ high°C.
 
 ---
 
@@ -163,7 +148,7 @@ Language: Chinese (full-width punctuation: ，、：！？。）for prose; Engli
 ```markdown
 # 📡 Pulse | {🌅 or 🌆} — {YYYY年M月D日}
 
-## Product Hunts
+## <font color="blue">🚀 Product Hunts</font>
 
 - **[Product Name](https://www.producthunt.com/posts/slug)** {upvotes if available}
 简短介绍与点评（简体中文）。
@@ -175,7 +160,7 @@ Language: Chinese (full-width punctuation: ，、：！？。）for prose; Engli
 
 ---
 
-## GitHub Trending
+## <font color="blue">🔥 GitHub Trending</font>
 
 - **[owner/repo](https://github.com/owner/repo)** ⭐ {total stars} (+{today})
 Description。{Language}。简短点评（简体中文）。
@@ -187,7 +172,7 @@ Description。{Language}。简短点评（简体中文）。
 
 ---
 
-## News
+## <font color="blue">📰 News</font>
 
 - **[Headline](URL)**
 1–2 sentence summary（简体中文）。
@@ -199,29 +184,36 @@ Description。{Language}。简短点评（简体中文）。
 
 ---
 
-## Podcasts (If exists updates)
+## <font color="blue">🎙️ Podcasts</font> (If exists updates)
 
-- **[Podcast Name](URL)**
-简短介绍与点评（简体中文）。
+- **[Episode Title](episode_url)** — Podcast Name
+shownotes 摘要（1-2 句简体中文总结）。
 
-- **[Podcast Name](URL)**
+- **[Episode Title](episode_url)** — Podcast Name
 ...
 
 (1-3 items)
 
 ---
 
-## 股市
+## <font color="blue">💰 Stock Market</font>
 
-**🇺🇸 BABA (NYSE)**
-${price} USD  {+/-}{change} ({+/-}{pct}%)  一句话股评。
+**{公司名} · {市场} {代码}**
 
-**🇭🇰 9988.HK (HKEX)**
-${price} HKD  {+/-}{change} ({+/-}{pct}%)  一句话股评。
+- 最新价：<font color='red/green'>**{price} {货币}**</font>
+- 涨跌：{emoji} <font color='red/green'>**{chg:+.2f} / {pct:+.2f}%**</font>
+- 最新交易日：{date}
+
+![BABA 90-Day](chart_path)
+
+{if_anomaly}
+⚠️ {abnormal_description}
+- {news_link_list}
+{/if_anomaly}
 
 ---
 
-## Weather
+## <font color="blue">🌤️ Weather</font>
 
 **🧱 北京**
 - 今天：{emoji} {type}，{low}°C ~ {high}°C
