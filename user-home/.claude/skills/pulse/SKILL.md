@@ -34,7 +34,7 @@ Execute the following steps in order. Step 1.5 runs a Python prefetch script tha
 ### Step 1.5: Run Prefetch Script
 
 ```bash
-cd /Users/henry/.agentara/.claude/skills/pulse && uv run scripts/prefetch.py 2>/dev/null
+cd .claude/skills/pulse && uv run scripts/prefetch.py 2>/dev/null
 ```
 
 Returns a JSON blob with `producthunt`, `github_trending`, `google_news`, `podcasts`, `weather`, `stock` data — all fetched in parallel (~1-3s).
