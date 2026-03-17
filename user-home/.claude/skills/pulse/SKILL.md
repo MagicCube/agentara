@@ -229,6 +229,13 @@ shownotes 摘要（不要原文，1-2 句简体中文重点总结，以及我为
 **🌿 南京**
 - 今天：{emoji} {type}，{low}°C ~ {high}°C
 - 明天：{emoji} {type}，{low}°C ~ {high}°C
+
+{综合三座城市天气，带雨伞、洗车等建议}
+
+---
+
+> 本 Pulse 由 [Agentara](https://github.com/MagicCube/agentara) 生成
+> [创建属于你的 Pulse](https://github.com/MagicCube/agentara)，别忘了 Star 哟！
 ```
 
 ### Formatting Rules
