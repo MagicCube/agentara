@@ -65,6 +65,8 @@ export function createAgentRunner(agentType: string): AgentRunner {
   switch (agentType) {
     case "claude":
       return new ClaudeAgentRunner();
+    case "codex":
+      return new CodexAgentRunner();
     default:
       throw new Error(`Unknown agent type: ${agentType}`);
   }
@@ -110,11 +112,34 @@ Implements AgentRunner via spawn of `claude` CLI (Anthropic Claude Code).
   - Maps parsed output to `SystemMessage` (subtype `init`) or `AssistantMessage`
 - On non-zero exit: throws `Error`
 
+### CodexAgentRunner
+
+Implements AgentRunner via spawn of `codex exec --json --full-auto` (OpenAI Codex CLI).
+
+- `type`: `"codex"`
+- `stream`:
+  - Uses `extractTextContent(message)` to convert UserMessage to text
+  - Passes `resume <sessionId>` when resuming an existing session
+  - Uses `--json` to parse JSONL event stream
+  - Maps `thread.started` → `SystemMessage` (subtype `init`)
+  - Maps `item.completed` with `agent_message` → `AssistantMessage` (text)
+  - Maps `item.completed` with `reasoning` → `AssistantMessage` (thinking)
+  - Maps `item.started` with `command_execution` → `AssistantMessage` (tool_use)
+  - Maps `item.completed` with `command_execution` → `ToolMessage` (tool_result)
+  - Maps `item.completed` with `file_change` → `AssistantMessage` (tool_use) + `ToolMessage` (tool_result)
+  - Maps `item.started/completed` with `mcp_tool_call` → `AssistantMessage`/`ToolMessage`
+  - Maps `item.completed` with `web_search` → `AssistantMessage` (tool_use)
+- On non-zero exit: throws `Error`
+
 ### community Files
 
 ```
 src/community/anthropic/
 ├── claude-agent-runner.ts
+└── index.ts
+
+src/community/openai/
+├── codex-agent-runner.ts
 └── index.ts
 ```
 

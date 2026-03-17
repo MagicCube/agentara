@@ -1,4 +1,5 @@
 import { ClaudeAgentRunner } from "@/community/anthropic";
+import { CodexAgentRunner } from "@/community/openai";
 import { DummyAgentRunner, MockAgentRunner, type AgentRunner } from "@/shared";
 
 /**
@@ -10,6 +11,8 @@ export function createAgentRunner(agentType: string): AgentRunner {
   switch (agentType) {
     case "claude":
       return new ClaudeAgentRunner();
+    case "codex":
+      return new CodexAgentRunner();
     case "dummy":
       return new DummyAgentRunner();
     case "mock":
