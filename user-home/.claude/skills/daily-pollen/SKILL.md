@@ -1,6 +1,8 @@
 ---
 name: daily-pollen
-description: >
+version: 1.0.0
+last_verified: "2026-03-18"
+description: |
   花粉过敏指数权威发布与实时监控。当用户询问花粉浓度、过敏风险、花粉预警，
   或设置每日定时推送花粉播报时使用。数据来源：花粉通（中国天气网 × 北京同仁医院）+ wttr.in 天气。
   支持自定义城市，支持设置 cron 定时每日推送。
@@ -34,10 +36,10 @@ export POLLEN_CITY="北京"   # 支持中文或拼音
 
 ### Step 2 & 3: 并发获取天气与花粉数据
 
-运行与 SKILL.md 同目录的 `fetch_data.py` 脚本，并发调用天气和花粉 API，将结果输出为 JSON：
+运行 `$SKILL_DIR/scripts/fetch_data.py`，并发调用天气和花粉 API，将结果输出为 JSON：
 
 ```bash
-POLLEN_CITY="${POLLEN_CITY:-北京}" python3 ~/.claude/skills/daily-pollen/fetch_data.py
+POLLEN_CITY="${POLLEN_CITY:-北京}" python3 "$SKILL_DIR/scripts/fetch_data.py"
 ```
 
 从 JSON 输出中提取：
