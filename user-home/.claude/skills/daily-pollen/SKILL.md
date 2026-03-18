@@ -34,24 +34,21 @@ export POLLEN_CITY="北京"   # 支持中文或拼音
 
 ### Step 2 & 3: 并发获取天气与花粉数据
 
-运行以下 Python 脚本，**同时**抓取天气和花粉数据，将结果输出为 JSON：
+运行以下 Python 脚本，**同时**调用天气和花粉 API，将结果输出为 JSON：
 
 ```bash
 python3 - << 'PYEOF'
-import asyncio, json, os, re, sys
-from datetime import datetime
+import asyncio, json, os, sys
 
 try:
     import aiohttp
-    from bs4 import BeautifulSoup
 except ImportError:
-    print("Installing dependencies...", file=sys.stderr)
     import subprocess
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "aiohttp", "beautifulsoup4"], check=True)
+    subprocess.run(["uv", "pip", "install", "-q", "aiohttp"], check=True)
     import aiohttp
-    from bs4 import BeautifulSoup
 
-CITY_MAP = {
+# wttr.in 城市名映射（中文 → 英文）
+CITY_EN_MAP = {
     "北京": "Beijing", "上海": "Shanghai", "广州": "Guangzhou",
     "天津": "Tianjin", "杭州": "Hangzhou", "西安": "Xian",
     "郑州": "Zhengzhou", "成都": "Chengdu", "武汉": "Wuhan",
@@ -62,98 +59,87 @@ CITY_MAP = {
     "海口": "Haikou", "乌鲁木齐": "Urumqi", "西宁": "Xining",
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/122.0.0.0 Safari/537.36",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-}
-
-async def fetch_weather(session: aiohttp.ClientSession, city_en: str) -> dict:
+async def fetch_weather(session: aiohttp.ClientSession, city: str) -> dict:
+    city_en = CITY_EN_MAP.get(city, city)
     url = f"https://wttr.in/{city_en}?format=j1"
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-        data = await resp.json(content_type=None)
+        raw = await resp.json(content_type=None)
+    # wttr.in 返回结构：{"data": {"current_condition": [...], "weather": [...]}}
+    data = raw.get("data", raw)
     cur = data["current_condition"][0]
     today = data["weather"][0]
     tomorrow = data["weather"][1] if len(data["weather"]) > 1 else {}
-    # Check for rain in today's / tomorrow's hourly forecast
+
     def has_rain(day):
         if not day:
             return False
         for h in day.get("hourly", []):
-            code = int(h.get("weatherCode", 0))
-            if code in range(263, 400):   # drizzle / rain codes
+            if int(h.get("weatherCode", 0)) in range(263, 400):
                 return True
-            if h.get("chanceofrain", "0") and int(h.get("chanceofrain", 0)) >= 40:
+            if int(h.get("chanceofrain", 0)) >= 40:
                 return True
         return False
+
     return {
         "desc": cur["weatherDesc"][0]["value"],
         "temp_c": cur["temp_C"],
-        "feels_like_c": cur["FeelsLikeC"],
         "humidity": cur["humidity"],
         "wind_kmph": cur["windspeedKmph"],
-        "today_rain": has_rain(today),
-        "tomorrow_rain": has_rain(tomorrow),
         "today_max_c": today.get("maxtempC", ""),
         "today_min_c": today.get("mintempC", ""),
+        "today_rain": has_rain(today),
+        "tomorrow_rain": has_rain(tomorrow),
     }
 
+async def fetch_city_code(session: aiohttp.ClientSession, city: str) -> str:
+    """从 API 获取城市 code（如 'beijing'），找不到则返回空字符串。"""
+    async with session.get(
+        "https://api.cdfcz.com/huafen/getCityList",
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as resp:
+        data = await resp.json(content_type=None)
+    for item in data.get("result", []):
+        if item.get("city") == city:
+            return item["code"]
+    return ""
+
 async def fetch_pollen(session: aiohttp.ClientSession, city: str) -> dict:
-    url = "https://richerculture.cn/hf/"
-    async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=20)) as resp:
-        html = await resp.text(errors="replace")
-    soup = BeautifulSoup(html, "html.parser")
+    code = await fetch_city_code(session, city)
+    if not code:
+        return {"city": city, "error": f"城市 '{city}' 不在花粉监测列表中"}
 
-    result: dict = {"city": city, "raw_text": ""}
+    async with session.get(
+        "https://api.cdfcz.com/huafen/getCityInfo",
+        params={"city": code, "days": 8},
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as resp:
+        data = await resp.json(content_type=None)
 
-    # ── 浓度 & 等级 ──────────────────────────────────────────────
-    # 尝试多种选择器，适应页面结构变化
-    for sel in ["#pollen-value", ".pollen-num", ".num", "[class*='value']", "[class*='num']"]:
-        el = soup.select_one(sel)
-        if el and re.search(r"\d+", el.get_text()):
-            result["concentration"] = int(re.search(r"\d+", el.get_text()).group())
-            break
+    records = data.get("result", [])
+    if not records:
+        return {"city": city, "code": code, "error": "暂无花粉数据"}
 
-    for sel in ["#pollen-level", ".pollen-level", ".level", "[class*='level']"]:
-        el = soup.select_one(sel)
-        if el and re.search(r"[1-5级]", el.get_text()):
-            m = re.search(r"([1-5])\s*级", el.get_text())
-            if m:
-                result["level"] = int(m.group(1))
-            break
-
-    # ── 致敏植物 ─────────────────────────────────────────────────
-    for sel in [".pollen-plant", ".plant", "[class*='plant']", "[class*='source']"]:
-        el = soup.select_one(sel)
-        if el:
-            result["plants"] = el.get_text(strip=True)
-            break
-
-    # ── 7日趋势数字（寻找连续数字序列） ──────────────────────────
-    numbers = re.findall(r"\b(\d{1,4})\b", html)
-    candidate_seq = [int(n) for n in numbers if 0 < int(n) < 5000]
-    # 找7个连续的合理浓度值（启发式：差值不超过2000）
-    for i in range(len(candidate_seq) - 6):
-        seq = candidate_seq[i:i+7]
-        if max(seq) - min(seq) < 2000 and max(seq) > 0:
-            result["weekly"] = seq
-            break
-
-    # ── 保留纯文本供 LLM 兜底解析 ────────────────────────────────
-    result["raw_text"] = soup.get_text(separator="\n", strip=True)[:3000]
-    return result
+    today = records[0]
+    return {
+        "city": city,
+        "code": code,
+        "date": today["date"],
+        "level_label": today["hf_level"],          # 很低/低/中/高/很高
+        "concentration": today["hf_num"],           # 粒/千平方毫米
+        "content": today["content"],                # 官方建议语
+        "weekly": [
+            {"date": r["date"], "level": r["hf_level"], "num": r["hf_num"]}
+            for r in records
+        ],
+    }
 
 async def main():
     city = os.environ.get("POLLEN_CITY", "北京")
-    city_en = CITY_MAP.get(city, city)
-
-    async with aiohttp.ClientSession(headers=HEADERS) as session:
+    async with aiohttp.ClientSession() as session:
         weather, pollen = await asyncio.gather(
-            fetch_weather(session, city_en),
+            fetch_weather(session, city),
             fetch_pollen(session, city),
         )
-
     print(json.dumps({"weather": weather, "pollen": pollen}, ensure_ascii=False, indent=2))
 
 asyncio.run(main())
@@ -161,11 +147,10 @@ PYEOF
 ```
 
 从 JSON 输出中提取：
+
 - **天气**：`weather.desc`、`weather.temp_c`、`weather.humidity`、`weather.wind_kmph`、`weather.today_rain` / `tomorrow_rain`
-- **花粉浓度**：`pollen.concentration`（粒/千平方毫米）
-- **花粉等级**：`pollen.level`（1–5）
-- **致敏植物**：`pollen.plants`
-- **7日趋势**：`pollen.weekly`（数组，若结构化提取失败则从 `pollen.raw_text` 中人工识别）
+- **今日花粉**：`pollen.level_label`（很低/低/中/高/很高）、`pollen.concentration`（粒/千平方毫米）、`pollen.content`（官方建议）
+- **7日趋势**：`pollen.weekly`（按日期倒序数组，含 `date`/`level`/`num`）
 
 ### Step 4: 解析等级与趋势
 
@@ -277,8 +262,8 @@ PYEOF
 ## 关键规则
 
 - **必须使用 Python 脚本**：数据获取必须运行 Step 2 & 3 中的 async Python 脚本，严禁使用 `agent-browser` 或 `WebFetch` 工具直接抓页面。
-- **依赖自动安装**：脚本首次运行会自动 `pip install aiohttp beautifulsoup4`，无需手动安装。
-- **数据兜底**：若结构化字段（concentration、level、plants、weekly）未能提取，从 `pollen.raw_text` 中人工识别关键数值后再生成报告；若脚本报错，提示用户稍后重试。
+- **依赖自动安装**：脚本首次运行会自动 `uv pip install aiohttp`，无需手动安装。
+- **数据兜底**：若 `pollen.error` 字段存在（城市不支持或数据暂无），直接告知用户并提示支持城市列表；若脚本报错，提示用户稍后重试。
 - **使用列表，不用表格**：推送内容使用 Markdown 列表格式，确保在各类 IM 应用中正确渲染
 - **中文全角标点**：推送内容中使用中文全角标点（，、：！）
 - **超标计算**：超标倍数 = (浓度 - 70) / 70，保留整数
