@@ -151,7 +151,7 @@ Language: Chinese (full-width punctuation: ，、：！？。）for prose; Engli
 ## <font color="navy">🚀 Product Hunts</font>
 
 - **[Product Name](https://www.producthunt.com/posts/slug)** {upvotes if available}
-简短介绍与点评（简体中文）。
+简短介绍与结合用户记忆的点评（简体中文）。
 
 - **[Product Name](URL)**
 ...
@@ -163,7 +163,7 @@ Language: Chinese (full-width punctuation: ，、：！？。）for prose; Engli
 ## <font color="navy">🔥 GitHub Trending</font>
 
 - **[owner/repo](https://github.com/owner/repo)** ⭐ {total stars} (+{today})
-Description。{Language}。简短点评（简体中文）。
+Description。{Language}。简短点评与结合用户记忆的点评（简体中文）。
 
 - **[owner/repo](URL)** ⭐ ...
 ...
@@ -187,7 +187,7 @@ Description。{Language}。简短点评（简体中文）。
 ## <font color="navy">🎙️ Podcasts</font> (If exists updates)
 
 - **[Channel Name - Episode Title](episode_url)** — Podcast Name
-shownotes 摘要（1-2 句简体中文重点总结，以及我为什么需要关注）。
+shownotes 摘要（1-2 句简体中文重点总结，与结合用户记忆的点评，以及我为什么需要关注）。
 
 - **[Episode Title](episode_url)** — Podcast Name
 ...
