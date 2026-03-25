@@ -255,8 +255,10 @@ shownotes 摘要（1-2 句简体中文重点总结）。
 
 ---
 
-> ✨ 本 Pulse 由 [Agentara](https://github.com/MagicCube/agentara) 智能生成
+> ✨ 本 Pulse 由 [Agentara](https://github.com/MagicCube/agentara) 智能生成{if agentara_stars} | ⭐ {agentara_stars}{/if}
 > 📡 [打造你的专属 Pulse](https://github.com/MagicCube/agentara)，别忘了 ⭐ Star
+
+> **Footer rule**: If `prefetch.agentara_stars` is a number, show the star count after "智能生成". If it is `null`, omit the star count entirely — do NOT fallback to web search or web fetch.
 ```
 
 ### Formatting Rules

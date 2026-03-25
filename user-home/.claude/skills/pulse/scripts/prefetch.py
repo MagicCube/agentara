@@ -19,6 +19,7 @@ Usage:
 
 import asyncio
 import json
+import os
 import re
 import sys
 import time
@@ -558,6 +559,20 @@ def generate_stock_chart(symbol: str, name: str, rows: list[dict]) -> str | None
     return str(out_path)
 
 
+async def _fetch_github_stars(
+    session: aiohttp.ClientSession, token: str
+) -> int | None:
+    """Fetch Agentara GitHub star count. Returns None on failure."""
+    try:
+        url = "https://api.github.com/repos/MagicCube/agentara"
+        headers = {"Authorization": f"token {token}", "User-Agent": UA}
+        async with session.get(url, headers=headers) as resp:
+            data = await resp.json(content_type=None)
+            return data.get("stargazers_count")
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -581,6 +596,12 @@ async def main():
             "weather_hangzhou": fetch_weather(session, "Hangzhou"),
             "weather_nanjing": fetch_weather(session, "Nanjing"),
         }
+
+        # GitHub stars (optional, needs GITHUB_OAUTH_TOKEN)
+        github_token = os.environ.get("GITHUB_OAUTH_TOKEN")
+        stars_future = None
+        if github_token:
+            stars_future = _fetch_github_stars(session, github_token)
 
         # Stock is sync — run in executor
         loop = asyncio.get_event_loop()
@@ -611,6 +632,14 @@ async def main():
             stock_results = []
             errors["stock"] = str(e)
 
+        # Await GitHub stars (non-blocking, optional)
+        agentara_stars = None
+        if stars_future is not None:
+            try:
+                agentara_stars = await stars_future
+            except Exception:
+                pass
+
     # Assemble output
     output = {
         "fetched_at": datetime.now(timezone.utc).isoformat() + "Z",
@@ -628,6 +657,7 @@ async def main():
             "Nanjing": async_results.get("weather_nanjing"),
         },
         "stock": {},
+        "agentara_stars": agentara_stars,
         "errors": errors,
     }
 
