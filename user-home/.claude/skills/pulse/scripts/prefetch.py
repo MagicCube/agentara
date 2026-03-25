@@ -292,61 +292,49 @@ async def fetch_podcasts(session: aiohttp.ClientSession) -> list:
     return [r for r in results if r and not isinstance(r, Exception)]
 
 
-def fetch_stock_sync() -> dict:
-    """Sync stock fetch via stooq.com (runs in executor)."""
-    s = requests.Session()
-    s.trust_env = False
-    s.headers["User-Agent"] = UA
+STOCK_INDICES = [
+    {"symbol": "sh000001", "name": "SSE Composite", "name_cn": "上证指数", "market": "SSE", "source": "sina"},
+    {"symbol": "sz399001", "name": "SZSE Component", "name_cn": "深证成指", "market": "SZSE", "source": "sina"},
+    {"symbol": "^ndq", "name": "NASDAQ Composite", "name_cn": "纳斯达克综合", "market": "NASDAQ", "source": "stooq"},
+    {"symbol": "^dji", "name": "Dow Jones", "name_cn": "道琼斯工业", "market": "NYSE", "source": "stooq"},
+]
 
-    end = datetime.today().strftime("%Y%m%d")
-    start = (datetime.today() - timedelta(days=45)).strftime("%Y%m%d")
-    url = f"https://stooq.com/q/d/l/?s=baba.us&d1={start}&d2={end}&i=d"
 
+def _fetch_sina_index(s: requests.Session, symbol: str) -> dict:
+    """Fetch Chinese index historical data via Sina Finance K-line API."""
+    url = (
+        "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+        f"CN_MarketData.getKLineData?symbol={symbol}&scale=240&ma=no&datalen=45"
+    )
     last_err = None
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             r = s.get(url, timeout=12)
             r.raise_for_status()
-            lines = r.text.strip().split("\n")
-            if len(lines) < 2 or "No data" in r.text:
-                raise ValueError("No data returned for BABA")
+            data = json.loads(r.text)
+            if not data:
+                raise ValueError(f"No data returned for {symbol}")
 
             rows = []
-            for line in lines[1:]:
-                parts = line.strip().split(",")
-                if len(parts) < 5:
-                    continue
+            for item in data:
                 try:
                     rows.append(
                         {
-                            "date": parts[0],
-                            "open": float(parts[1]),
-                            "high": float(parts[2]),
-                            "low": float(parts[3]),
-                            "close": float(parts[4]),
-                            "vol": float(parts[5])
-                            if len(parts) > 5 and parts[5]
-                            else 0.0,
+                            "date": item["day"][:10],
+                            "open": float(item["open"]),
+                            "high": float(item["high"]),
+                            "low": float(item["low"]),
+                            "close": float(item["close"]),
+                            "vol": float(item.get("volume", 0)),
                         }
                     )
-                except ValueError:
+                except (ValueError, KeyError):
                     continue
 
             if not rows:
-                raise ValueError("No rows parsed for BABA")
+                raise ValueError(f"No rows parsed for {symbol}")
 
-            # Compute change
-            for i, row in enumerate(rows):
-                if i == 0:
-                    row["pct"] = 0.0
-                    row["chg"] = 0.0
-                else:
-                    prev = rows[i - 1]["close"]
-                    row["pct"] = (
-                        round((row["close"] - prev) / prev * 100, 4) if prev else 0.0
-                    )
-                    row["chg"] = round(row["close"] - prev, 4)
-
+            _compute_changes(rows)
             latest = rows[-1]
             return {
                 "latest": {
@@ -365,10 +353,102 @@ def fetch_stock_sync() -> dict:
     return {"error": str(last_err)}
 
 
+def _fetch_stooq_index(s: requests.Session, symbol: str) -> dict:
+    """Fetch US index historical data via stooq.com."""
+    end = datetime.today().strftime("%Y%m%d")
+    start = (datetime.today() - timedelta(days=90)).strftime("%Y%m%d")
+    url = f"https://stooq.com/q/d/l/?s={symbol}&d1={start}&d2={end}&i=d"
+
+    last_err = None
+    for attempt in range(3):
+        try:
+            r = s.get(url, timeout=12)
+            r.raise_for_status()
+            lines = r.text.strip().split("\n")
+            if len(lines) < 2 or "No data" in r.text:
+                raise ValueError(f"No data returned for {symbol}")
+
+            rows = []
+            for line in lines[1:]:
+                parts = line.strip().split(",")
+                if len(parts) < 5:
+                    continue
+                try:
+                    rows.append(
+                        {
+                            "date": parts[0],
+                            "open": float(parts[1]),
+                            "high": float(parts[2]),
+                            "low": float(parts[3]),
+                            "close": float(parts[4]),
+                            "vol": (
+                                float(parts[5]) if len(parts) > 5 and parts[5] else 0.0
+                            ),
+                        }
+                    )
+                except ValueError:
+                    continue
+
+            if not rows:
+                raise ValueError(f"No rows parsed for {symbol}")
+
+            _compute_changes(rows)
+            latest = rows[-1]
+            return {
+                "latest": {
+                    "price": latest["close"],
+                    "change": latest["chg"],
+                    "change_pct": latest["pct"],
+                    "date": latest["date"],
+                },
+                "rows": rows[-2:],
+                "_all_rows": rows,
+            }
+        except Exception as e:
+            last_err = e
+            time.sleep(2 * (attempt + 1))
+
+    return {"error": str(last_err)}
+
+
+def _compute_changes(rows: list[dict]) -> None:
+    """Compute day-over-day change and percentage for each row in place."""
+    for i, row in enumerate(rows):
+        if i == 0:
+            row["pct"] = 0.0
+            row["chg"] = 0.0
+        else:
+            prev = rows[i - 1]["close"]
+            row["pct"] = round((row["close"] - prev) / prev * 100, 4) if prev else 0.0
+            row["chg"] = round(row["close"] - prev, 4)
+
+
+def fetch_stock_sync() -> list:
+    """Fetch all indices: Sina for Chinese, stooq for US."""
+    s = requests.Session()
+    s.trust_env = False
+    s.headers["User-Agent"] = UA
+
+    results = []
+    for idx in STOCK_INDICES:
+        if idx["source"] == "sina":
+            data = _fetch_sina_index(s, idx["symbol"])
+        else:
+            data = _fetch_stooq_index(s, idx["symbol"])
+        results.append({
+            "symbol": idx["symbol"],
+            "name": idx["name"],
+            "name_cn": idx["name_cn"],
+            "market": idx["market"],
+            "data": data,
+        })
+    return results
+
+
 WORKSPACE = Path.home() / ".agentara" / "workspace"
 
 
-def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
+def generate_stock_chart(symbol: str, name: str, rows: list[dict]) -> str | None:
     """Generate a 45-day line chart (3:2 aspect). Gradient fill: green=down, red=up."""
     import matplotlib
     import numpy as np
@@ -387,14 +467,12 @@ def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
     latest = rows[-1]
     prev = rows[-2]["close"]
     change_pct = (latest["close"] - prev) / prev * 100 if prev else 0
-    is_up = latest["close"] >= prev  # 当天涨跌
+    is_up = latest["close"] >= prev
 
-    # --- Style (3:2 ratio). Green=当天跌, Red=当天涨 ---
     accent = "#2ECC71" if not is_up else "#E74C3C"
     fig, ax = plt.subplots(figsize=(7.5, 5), facecolor="white")
     ax.set_facecolor("white")
 
-    # Gradient fill under the line (bottom=strong, top=transparent)
     y_base = min(closes) * 0.998
     y_max = max(closes)
     xlims = mdates.date2num([dates[0], dates[-1]])
@@ -417,7 +495,6 @@ def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
         dates, closes, color=accent, linewidth=1.8, solid_capstyle="round", zorder=2
     )
 
-    # Latest price dot
     ax.scatter(
         [dates[-1]],
         [closes[-1]],
@@ -428,9 +505,9 @@ def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
         linewidths=1.5,
     )
 
-    # Annotate latest price
+    # Annotate latest price — no currency prefix for indices
     ax.annotate(
-        f"${latest['close']:.2f}  ({change_pct:+.2f}%)",
+        f"{latest['close']:,.2f}  ({change_pct:+.2f}%)",
         xy=(dates[-1], closes[-1]),
         xytext=(-12, 14),
         textcoords="offset points",
@@ -440,9 +517,9 @@ def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
         ha="right",
     )
 
-    # Title — English only, no CJK
+    # Title
     ax.set_title(
-        f"{code}  ·  45-Day Close",
+        f"{name}  ·  45-Day",
         fontsize=14,
         fontweight="bold",
         color="#2C3E50",
@@ -450,36 +527,32 @@ def generate_stock_chart(code: str, rows: list[dict]) -> str | None:
         pad=14,
     )
 
-    # Axis formatting
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=mdates.MO, interval=2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=mdates.MO))
     ax.tick_params(axis="x", labelsize=9, colors="#7F8C8D")
     ax.tick_params(axis="y", labelsize=9, colors="#7F8C8D")
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:.0f}"))
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 
-    # Grid
     ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.4, color="#BDC3C7")
     ax.grid(axis="x", linestyle="--", linewidth=0.3, alpha=0.2, color="#BDC3C7")
 
-    # Remove spines
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
     for spine in ("bottom", "left"):
         ax.spines[spine].set_color("#ECF0F1")
 
-    # Y-axis padding
     y_min, y_max = min(closes), max(closes)
     margin = (y_max - y_min) * 0.12 or 1
     ax.set_ylim(y_min - margin, y_max + margin * 1.5)
 
     plt.tight_layout()
 
-    # Save
     today = datetime.today().strftime("%Y-%m-%d")
-    out_dir = WORKSPACE / "outputs" / f"stock-{code}"
+    safe_symbol = symbol.lstrip("^")
+    out_dir = WORKSPACE / "outputs" / "stock"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{today}.png"
+    out_path = out_dir / f"{safe_symbol}-{today}.png"
     fig.savefig(out_path, dpi=180, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return str(out_path)
@@ -503,6 +576,9 @@ async def main():
             "podcasts": fetch_podcasts(session),
             "weather_beijing": fetch_weather(session, "Beijing"),
             "weather_shanghai": fetch_weather(session, "Shanghai"),
+            "weather_guangzhou": fetch_weather(session, "Guangzhou"),
+            "weather_shenzhen": fetch_weather(session, "Shenzhen"),
+            "weather_hangzhou": fetch_weather(session, "Hangzhou"),
             "weather_nanjing": fetch_weather(session, "Nanjing"),
         }
 
@@ -522,15 +598,17 @@ async def main():
                 async_results[key] = result
                 errors[key] = None
 
-        # Await stock
+        # Await stock (now returns a list)
         try:
-            stock_result = await stock_future
-            if isinstance(stock_result, dict) and "error" in stock_result:
-                errors["stock"] = stock_result["error"]
-            else:
-                errors["stock"] = None
+            stock_results = await stock_future
+            stock_errors = [
+                f"{r['symbol']}: {r['data']['error']}"
+                for r in stock_results
+                if isinstance(r.get("data"), dict) and "error" in r["data"]
+            ]
+            errors["stock"] = "; ".join(stock_errors) if stock_errors else None
         except Exception as e:
-            stock_result = None
+            stock_results = []
             errors["stock"] = str(e)
 
     # Assemble output
@@ -544,17 +622,28 @@ async def main():
         "weather": {
             "Beijing": async_results.get("weather_beijing"),
             "Shanghai": async_results.get("weather_shanghai"),
+            "Guangzhou": async_results.get("weather_guangzhou"),
+            "Shenzhen": async_results.get("weather_shenzhen"),
+            "Hangzhou": async_results.get("weather_hangzhou"),
             "Nanjing": async_results.get("weather_nanjing"),
         },
         "stock": {},
         "errors": errors,
     }
 
-    # Generate stock chart, then strip full rows from JSON
-    if stock_result and "error" not in stock_result:
-        chart_path = generate_stock_chart("BABA", stock_result.pop("_all_rows", []))
-        stock_result["chart"] = chart_path
-        output["stock"] = [{"symbol": "BABA", "market": "NYSE", "data": stock_result}]
+    # Generate stock charts for each index, then strip full rows from JSON
+    stock_output = []
+    for entry in stock_results:
+        data = entry.get("data", {})
+        if isinstance(data, dict) and "error" not in data:
+            all_rows = data.pop("_all_rows", [])
+            # Use English name for chart title (avoids CJK font issues)
+            chart_path = generate_stock_chart(
+                entry["symbol"], entry["name"], all_rows
+            )
+            data["chart"] = chart_path
+        stock_output.append(entry)
+    output["stock"] = stock_output
 
     json.dump(output, sys.stdout, ensure_ascii=False, indent=2)
     print()  # trailing newline
