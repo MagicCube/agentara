@@ -18,6 +18,16 @@ import {
 const logger = createLogger("codex-agent-runner");
 
 /**
+ * Error thrown when the agent runner is aborted.
+ */
+export class AgentAbortError extends Error {
+  constructor(message = "Agent execution was aborted") {
+    super(message);
+    this.name = "AgentAbortError";
+  }
+}
+
+/**
  * The agent runner for OpenAI Codex CLI.
  *
  * Spawns `codex exec --json --dangerously-bypass-approvals-and-sandbox`
@@ -33,6 +43,7 @@ export class CodexAgentRunner implements AgentRunner {
   ): AsyncIterableIterator<SystemMessage | AssistantMessage | ToolMessage> {
     const sessionId = message.session_id;
     const isNew = options?.isNewSession ?? false;
+    const signal = options?.signal;
     const resumeId = options.runnerSessionId ?? sessionId;
     const textContentOfUserMessage = JSON.stringify(
       extractTextContent(message),
@@ -56,6 +67,21 @@ export class CodexAgentRunner implements AgentRunner {
       stderr: "pipe",
     });
 
+    // Handle abort signal
+    let aborted = false;
+    const abortHandler = () => {
+      aborted = true;
+      logger.info({ session_id: sessionId }, "killing Codex CLI process");
+      proc.kill();
+    };
+    if (signal) {
+      if (signal.aborted) {
+        proc.kill();
+        throw new AgentAbortError();
+      }
+      signal.addEventListener("abort", abortHandler, { once: true });
+    }
+
     const decoder = new TextDecoder();
     const stderrChunks: Uint8Array[] = [];
     const stderrPipe = proc.stderr.pipeTo(
@@ -68,27 +94,40 @@ export class CodexAgentRunner implements AgentRunner {
 
     let buffer = "";
     let stdoutRaw = "";
-    for await (const chunk of proc.stdout) {
-      const decoded = decoder.decode(chunk, { stream: true });
-      buffer += decoded;
-      stdoutRaw += decoded;
-      const lines = buffer.split("\n");
-      buffer = lines.pop()!;
-      for (const line of lines) {
-        if (line.trim()) {
-          const messages = this._parseStreamLine(line.trim(), sessionId);
-          for (const msg of messages) {
-            yield msg;
+    try {
+      for await (const chunk of proc.stdout) {
+        if (aborted) {
+          break;
+        }
+        const decoded = decoder.decode(chunk, { stream: true });
+        buffer += decoded;
+        stdoutRaw += decoded;
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (line.trim()) {
+            const messages = this._parseStreamLine(line.trim(), sessionId);
+            for (const msg of messages) {
+              yield msg;
+            }
           }
         }
       }
+
+      if (!aborted && buffer.trim()) {
+        const messages = this._parseStreamLine(buffer.trim(), sessionId);
+        for (const msg of messages) {
+          yield msg;
+        }
+      }
+    } finally {
+      if (signal) {
+        signal.removeEventListener("abort", abortHandler);
+      }
     }
 
-    if (buffer.trim()) {
-      const messages = this._parseStreamLine(buffer.trim(), sessionId);
-      for (const msg of messages) {
-        yield msg;
-      }
+    if (aborted) {
+      throw new AgentAbortError();
     }
 
     const exitCode = await proc.exited;

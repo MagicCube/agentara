@@ -25,6 +25,12 @@ export const AgentRunOptions = z.object({
    * Runner-specific session/thread id used by some providers for true resume.
    */
   runnerSessionId: z.string().optional(),
+
+  /**
+   * Abort signal for cancelling the running task.
+   * When aborted, the agent runner should kill any spawned subprocesses.
+   */
+  signal: z.instanceof(AbortSignal).optional(),
 });
 export interface AgentRunOptions extends z.infer<typeof AgentRunOptions> {}
 

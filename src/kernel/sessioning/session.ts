@@ -17,6 +17,16 @@ export interface SessionEventTypes {
 }
 
 /**
+ * Options for streaming messages from the session.
+ */
+export interface SessionStreamOptions {
+  /**
+   * Abort signal for cancelling the running task.
+   */
+  signal?: AbortSignal;
+}
+
+/**
  * Represent a session context of the agent.
  */
 export class Session extends EventEmitter {
@@ -41,10 +51,12 @@ export class Session extends EventEmitter {
   /**
    * Return a stream of messages from the agent.
    * @param userMessage - The message to send to the agent.
+   * @param streamOptions - Optional options for the stream (e.g., abort signal).
    * @returns The stream of messages from the agent.
    */
   async stream(
     userMessage: UserMessage,
+    streamOptions?: SessionStreamOptions,
   ): Promise<
     AsyncIterableIterator<SystemMessage | AssistantMessage | ToolMessage>
   > {
@@ -52,6 +64,7 @@ export class Session extends EventEmitter {
     const runner = createAgentRunner(this.agentType);
     const rawStream = runner.stream(userMessage, {
       ...this.options,
+      signal: streamOptions?.signal,
     });
     this.options.isNewSession = false;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -68,10 +81,14 @@ export class Session extends EventEmitter {
   /**
    * Send a message to the agent and return the last message.
    * @param userMessage - The message to send to the agent.
+   * @param streamOptions - Optional options for the stream (e.g., abort signal).
    * @returns The last message from the agent.
    */
-  async run(userMessage: UserMessage): Promise<AssistantMessage> {
-    const stream = await this.stream(userMessage);
+  async run(
+    userMessage: UserMessage,
+    streamOptions?: SessionStreamOptions,
+  ): Promise<AssistantMessage> {
+    const stream = await this.stream(userMessage, streamOptions);
     let lastMessage: AssistantMessage | undefined;
     for await (const message of stream) {
       if (message.role === "assistant") {

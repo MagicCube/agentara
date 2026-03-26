@@ -122,6 +122,7 @@ class Kernel {
     taskId: string,
     sessionId: string,
     payload: InboundMessageTaskPayload,
+    signal?: AbortSignal,
   ) => {
     const inboundMessage = payload.message;
     const session = await this._sessionManager.resolveSession(sessionId, {
@@ -146,7 +147,7 @@ class Kernel {
       },
     );
     contents = [];
-    const stream = await session.stream(inboundMessage);
+    const stream = await session.stream(inboundMessage, { signal });
     let lastMessage: AssistantMessage | undefined;
     for await (const message of stream) {
       if (message.role === "assistant") {
@@ -175,6 +176,7 @@ class Kernel {
     _taskId: string,
     sessionId: string,
     payload: ScheduledTaskPayload,
+    signal?: AbortSignal,
   ) => {
     const payload_without_instruction: { instruction?: string } = {
       ...payload,
@@ -201,7 +203,7 @@ ${payload.instruction}`,
       firstMessage: userMessage,
     });
     delete payload_without_instruction.instruction;
-    const assistantMessage = await session.run(userMessage);
+    const assistantMessage = await session.run(userMessage, { signal });
     if (extractTextContent(assistantMessage).includes("[SKIPPED]")) {
       return;
     }
