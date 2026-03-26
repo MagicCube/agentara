@@ -2,7 +2,35 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
+
+// Mock config module before importing CodexAgentRunner
+void mock.module("@/shared", () => ({
+  config: {
+    agents: {
+      default: { type: "codex", model: "o3" },
+    },
+  },
+  createLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+  extractTextContent: (msg: { content: Array<{ type: string; text?: string }> }) =>
+    msg.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text ?? "")
+      .join("\n"),
+  resolveInstructionFile: (path: string) => {
+    try {
+      return readFileSync(path, "utf-8");
+    } catch {
+      return null;
+    }
+  },
+  uuid: () => "test-uuid",
+}));
 
 import { CodexAgentRunner } from "@/community/openai";
 
