@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["akshare", "pandas"]
+# ///
 import akshare as ak
 import pandas as pd
 
@@ -52,8 +56,7 @@ def get_latest_from_daily(df: pd.DataFrame, symbol: str, market: str):
     }
 
 
-# US: Alibaba ADR
-df_us = ak.stock_us_daily(symbol="BABA")
-baba = get_latest_from_daily(df_us, "BABA", "NYSE")
-
-print(baba)
+if __name__ == "__main__":
+    df_us = ak.stock_us_daily(symbol="BABA")
+    baba = get_latest_from_daily(df_us, "BABA", "NYSE")
+    print(baba)
