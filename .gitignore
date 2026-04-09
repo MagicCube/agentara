@@ -36,3 +36,14 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # runtime (background server PID and log files)
 .run
 package-lock.json
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyz
