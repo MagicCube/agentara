@@ -51,6 +51,10 @@ class Kernel {
     return this._taskDispatcher;
   }
 
+  get messageGateway(): MultiChannelMessageGateway {
+    return this._messageGateway;
+  }
+
   get honoServer(): HonoServer {
     return this._honoServer;
   }
