@@ -8,7 +8,7 @@
 [![Hono](https://img.shields.io/badge/API-Hono-E36002?logo=hono&logoColor=white)](https://hono.dev)
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB?logo=react&logoColor=white)](https://react.dev)
 
-![agentara](https://github.com/user-attachments/assets/8f35f630-258a-4640-a976-a9c1e0543f43)
+<img width="1916" height="821" alt="ADF7F867-88A5-4623-B5A9-06D1CDF4C28E_1_201_a 1" src="https://github.com/user-attachments/assets/ea8b312a-4631-410b-8649-6ed522d3e9b4" />
 
 Meet Tara, your 24/7 personal assistant powered by Claude Code and OpenAI Codex. Multi-channel messaging, long-term memory, skills, task scheduling, session management, and more — all running locally.
 
